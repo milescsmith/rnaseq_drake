@@ -35,10 +35,10 @@ plan = drake_plan(
     mutate(project = factor(project),
            study_group = factor(study_group),
            disease_class = factor(disease_class),
-           run_id = factor(run_id)) %>% 
-    dplyr::group_by(study_group) %>% 
-    dplyr::sample_n(5) %>% 
-    ungroup(),
+           run_id = factor(run_id)), # %>% 
+    # dplyr::group_by(study_group) %>% 
+    # dplyr::sample_n(5) %>% 
+    # ungroup(),
   
   #Inspect the metadata:
   md_cat_data = inspect_cat(md),

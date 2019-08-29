@@ -1,0 +1,1 @@
+Project to process RNAseq data in R using DESeq and creating a report with Drake.

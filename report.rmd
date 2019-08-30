@@ -11,11 +11,11 @@ output:
 
 ```{css, echo=FALSE}
     body .main-container {
-      max-width: 1800px !important;
-      width: 1800px !important;
+      max-width: 1500px !important;
+      width: 1500px !important;
     }
     body {
-      max-width: 1880px !important;
+      max-width: 1500px !important;
     }
 ```
 
@@ -131,7 +131,7 @@ if (!all(md$sample_name %in% names(tx_files))){
 
 ## Sample QC filtering
 
-Samples with a PC1 zscore > 3 (those that fall beyond the red line below) are dropped from analysis.
+Samples with a PC1 zscore > 3 (those that fall outside the red lines below) are dropped from analysis.
 ```{r, fig.width=6, fig.height=6}
 pca_qc %>% ggplot(aes(x = PC1,
                       y = PC2,
@@ -139,13 +139,21 @@ pca_qc %>% ggplot(aes(x = PC1,
   geom_point(alpha = 0.5) +
   geom_vline(aes(xintercept = (3*sd(pca_qc$PC1)) + mean(pca_qc$PC1)),
              color = "red") +
+  geom_vline(aes(xintercept = -(3*sd(pca_qc$PC1)) + mean(pca_qc$PC1)),
+             color = "red") +
   scale_color_gradient(low = "grey90",high = "red") +
   theme_cowplot()
 ```
 
 ```{r}
 if (length(removed_outliers) > 0) {
-  message(str_glue("Removing the following samples: {removed_outliers}"))
+  message("Removing the following samples:")
+  md %>%
+    filter(sample_name %in% removed_outliers) %>%
+    kable() %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+      full_width = FALSE)
 }
 ```
 
@@ -160,7 +168,6 @@ pheatmap(sampleDistMatrix,
          show_colnames = TRUE,
          annotation_colors = group_pal,
          angle_col = 45)
-
 ```
 
 # Differential Gene Expression
@@ -173,8 +180,8 @@ summary(res)
 ### 25 genes with largest negative log-fold change in SLE
 ```{r}
 down_table %>%
-  select(-baseMean) %>%
-  filter(log2FoldChange > 0) %>%
+  dplyr::select(-baseMean) %>%
+  dplyr::filter(log2FoldChange > 0) %>%
   arrange(desc(log2FoldChange)) %>%
   mutate(
     gene = cell_spec(gene,
@@ -184,6 +191,7 @@ down_table %>%
                      bold = TRUE,
                      background = spec_color(padj)),
     log2FoldChange = color_bar("tomato")(log2FoldChange)) %>%
+  ungroup() %>%
   rename(pvalue = paste0("pvalue", footnote_marker_symbol(1)),
          stat = paste0("stat", footnote_marker_symbol(2)),
          padj = paste0("padj", footnote_marker_symbol(3)),
@@ -211,6 +219,7 @@ up_table %>%
                      bold = TRUE,
                      background = spec_color(padj)),
     log2FoldChange = color_bar("lightgreen")(log2FoldChange)) %>%
+  ungroup() %>%
   rename(pvalue = paste0("pvalue", footnote_marker_symbol(1)),
          stat = paste0("stat", footnote_marker_symbol(2)),
          padj = paste0("padj", footnote_marker_symbol(3)),
@@ -250,9 +259,15 @@ t(vsd_exprs)[,ISGs] %>%
 
 ### Expression of individual genes in the M1.2, M3.4, and M5.12 gene modules
 ```{r fig.height=9, fig.width=12}
-t(vsd_exprs)[,rownames(module_ISGs)] %>%
-    pheatmap(scale = 'column',
-             border_color = NA,
+vsd_exprs %>%
+  as_tibble(rownames = "gene") %>%
+  filter(gene %in% rownames(module_ISGs)) %>%
+  filter(gene != "MT1A") %>%
+  column_to_rownames("gene") %>%
+  t() %>%
+  `[`(,rownames(module_ISGs)[(rownames(module_ISGs) != "MT1A")]) %>%
+  pheatmap(scale = 'column',
+           border_color = NA,
              fontsize_row = 6, 
              fontsize_col = 6, 
              annotation_row = annotation_info,
@@ -397,7 +412,7 @@ pheatmap(annotated_module_scores,
 
 ## All modules
 
-```{r fig.height=9, fig.width=9}
+```{r fig.height=9, fig.width=11}
 pheatmap(module_scores,
          scale = 'column',
          border_color = NA,

@@ -239,7 +239,7 @@ plan = drake_plan(
     pull(gene),
   
   #fig.width=10, fig.height=9
-  ISGs = intersect(c("STAT1", "ADAR", "ABCE1", "RNASEL", "EGR1", "TYK2", "IFNAR1",
+  ISGs = intersect(c("STAT1", "ADAR", "ABCE1", "RNASEL", "TYK2", "IFNAR1",
                      "IFNB1", "STAT2", "IFNAR2", "JAK1", "SAMHD1", 
                      "SOCS1", "SOCS3", "STAT1", "ISG20", "IFITM3", "IFITM1", "IRF9", "ISG15", 
                      "IFI6", "IFIT3", "USP18", "IP6K2", "PSMB8", "IFIT1", "IRF4", "IRF5", "IRF1", 

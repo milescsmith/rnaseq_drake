@@ -1,4 +1,3 @@
-
 source("R/packages.R")  # Load your packages, e.g. library(drake).
 source("R/functions.R") # Define your custom code as a bunch of functions.
 
@@ -37,5 +36,5 @@ BiocParallel::register(BPPARAM)
 make(plan = plan,
      verbose = 2,
      parallelism = "future",
-     jobs = 96,
+     jobs = 8,
      lock_envir = FALSE)

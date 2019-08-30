@@ -1,1 +1,2 @@
-Project to process RNAseq data in R using DESeq and creating a report with Drake.
+Drake pipeline to process RNAseq data in R using DESeq, including differential
+gene expression analysis and module score assignment.

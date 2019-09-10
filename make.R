@@ -23,8 +23,8 @@ control_group = "Control"
 experimental_group = "SLE"
 
 ### Setup file locations
-seq_file_directory = "/home/milo/datasets/S4"
-metadata_file = "datasets/rnaseq/S4/NovaSeq_Sample_List.xlsx"
+seq_file_directory = "/home/milo/datasets/novaseq"
+metadata_file = "datasets/rnaseq/novaseq/NovaSeq_Sample_List.xlsx"
 
 source("R/plan.R")      # Create your drake plan.
 config <- drake_config(plan)

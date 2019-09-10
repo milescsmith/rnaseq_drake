@@ -177,6 +177,16 @@ print("Log fold change results:")
 summary(res)
 ```
 
+###
+```{r}
+plotMA(res, ylim = c(-2,2))
+```
+
+### Dispersion estimates
+```{r}
+plotDispEsts(dds_with_scores)
+```
+
 ### 25 genes with largest negative log-fold change in SLE
 ```{r}
 down_table %>%
@@ -424,6 +434,38 @@ pheatmap(module_scores,
          show_rownames = FALSE,
          angle_col = 315)
 ```
+
+# Sample Sanity check
+
+To determine if there is a gross mixup of samples, examine the expression of sex-specific transcripts to ensure that only female-subject samples express "XIST" and male-subject samples "DDX3Y:
+
+```{r}
+sex_specific_genes <- tibble(chr = c(rep("Y",16), rep("X",2)),
+                             symbol = c("DDX3Y","EIF1AY",
+                                       "KDM5D","NLGN4Y",
+                                       "PCDH11Y","PRORY",
+                                       "PRY","PRY2",
+                                       "RPS4Y1","RPS4Y2",
+                                       "TBL1Y","TMSB4Y",
+                                       "USP9Y","UTY",
+                                       "VCY","ZFY",
+                                       "XIST","ZFX"))
+
+t(vsd_exprs)[,c(sex_specific_genes[['symbol']])] %>%
+  pheatmap(scale='column',
+           border_color = NA,
+           fontsize_row=6,
+           fontsize_col = 6,
+           annotation_row = annotation_info[,c("sex","run_id", "disease_class", "study_group")],
+           annotation_colors = group_pal,
+           angle_col=315,
+           annotation_col = column_to_rownames(sex_specific_genes, "symbol"),
+           cluster_cols = FALSE,
+           breaks=c(-5,-4,-3,-2,-1,0,1,2,3,4,5),
+           color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(10))
+```
+
+These appear to be correct.
 
 ```{r}
 vsd_exprs %>% 

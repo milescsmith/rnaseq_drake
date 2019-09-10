@@ -10,7 +10,7 @@ plan = drake_plan(
                  FUN=read_excel, 
                  sheet = "main", 
                  col_types = c("numeric", 
-                               rep("text",11),
+                               rep("text",10),
                                "numeric",
                                rep("text",6),
                                rep("numeric", 3)),
@@ -50,7 +50,7 @@ plan = drake_plan(
   #of all files ending in "h5" which each list member named for the sample it represents.
   
   tx_sample_names = dir(path = seq_file_directory,
-                        pattern = "sf$",
+                        pattern = "quant.sf.gz",
                         recursive = TRUE,
                         full.name = TRUE) %>% 
     grep(pattern = "Undetermined|NONE", invert = TRUE, value = TRUE) %>% 
@@ -64,7 +64,7 @@ plan = drake_plan(
     map_chr(`[[`,1),
   
   tx_files = dir(path = seq_file_directory,
-                 pattern = "sf$",
+                 pattern = "quant.sf.gz",
                  recursive = TRUE,
                  full.name = TRUE) %>% 
     grep(pattern = "Undetermined|NONE", invert = TRUE, value = TRUE) %>%
@@ -126,6 +126,7 @@ plan = drake_plan(
   annotation_info = as.data.frame(colData(dds_processed))[,c("disease_class",
                                                              "study_group",
                                                              "run_id",
+                                                             "sex",
                                                              "initial_concentration_ng_ul",
                                                              "final_concentration_ng_ul",
                                                              "rin")],
@@ -286,6 +287,10 @@ plan = drake_plan(
       brewer.pal(12, "Paired"))(length(run_groups)) %>%
     `names<-`(run_groups),
   
+  chr_pal = c("Y" = "#0000FF", "X" = "#FF0000"),
+  
+  sex_pal = c("Male" = "#0000FF", "Female" = "#FF0000"),
+  
   comparison_grouping_variable_colors = c("#000000",
                                           "#FF9999") %>% `names<-`(c(control_group, experimental_group)),
   
@@ -293,8 +298,10 @@ plan = drake_plan(
     list(
       comparison_grouping_variable_colors,
       run_id_color_set,
-      type_pal
-      ) %>% `names<-`(c(comparison_grouping_variable, "run_id", "type")),
+      type_pal,
+      chr_pal,
+      sex_pal
+      ) %>% `names<-`(c(comparison_grouping_variable, "run_id", "type", "chr", "sex")),
   
   module_scores =
     colData(dds_with_scores) %>%

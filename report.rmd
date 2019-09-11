@@ -26,6 +26,8 @@ loadd(annotation_info,
   annotated_module_scores,
   annotated_modules,
   dds_with_scores,
+  ifn_scores_with_viral,
+  inflammation_scores_with_viral,
   ISGs,
   group_pal,
   md,
@@ -52,6 +54,7 @@ loadd(annotation_info,
   umap_plot2,
   umap_plot,
   umap_results,
+  viral_transcripts,
   vsd_exprs)
 ```
 
@@ -434,6 +437,32 @@ pheatmap(module_scores,
          show_rownames = FALSE,
          angle_col = 315)
 ```
+
+# Viral trancription
+
+Samples were examined for transcripts from the following viruses:
+HSV-1, HSV-2, VZV, EBV, EBV-2, HCMV, HHV7, KSHV, Adenovirus 2, B19, HIV-1, HBV, HPV-2, HPV-16, JCV, and MCV-1
+
+## Detected viral transcription and Interferon module scores
+
+```{r fig.height=11, fig.width=8}
+ifn_scores_with_viral %>%
+  column_to_rownames("sample") %>%
+  pheatmap(scale="column",
+           annotation_colors = group_pal,
+           annotation_row = annotation_info)
+```
+
+## Detected viral transcription and Inflammatory module scores
+
+```{r fig.height=11, fig.width=8}
+inflammation_scores_with_viral %>%
+  column_to_rownames("sample") %>%
+  pheatmap(scale="column",
+           annotation_colors = group_pal,
+           annotation_row = annotation_info)
+```
+
 
 # Sample Sanity check
 

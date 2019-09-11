@@ -1,8 +1,9 @@
 plan = drake_plan(
-  annot = tibble(transcript = gencodev31$transcript_id, 
-                 gene_name = gencodev31$gene_name) %>%
-    distinct() %>%
-    filter(!is.na(transcript)),
+  # annot = tibble(transcript = gencodev31$transcript_id, 
+  #                gene_name = gencodev31$gene_name) %>%
+  #   distinct() %>%
+  #   filter(!is.na(transcript)),
+  
   ## Read and process metadata:
   md =
     import_table(file=metadata_file,
@@ -316,7 +317,45 @@ plan = drake_plan(
     select(sample, 
            one_of(annotated_modules$module)) %>%
     column_to_rownames("sample"),
+
+  viral_transcripts =
+    annot %>%
+    filter(!str_detect(string = transcript,
+                       pattern = "^ENST")) %>%
+    pull(gene_name) %>%
+    intersect(rownames(vsd_exprs)),
   
+  viral_exprs =
+    vsd_exprs[viral_transcripts,] %>%
+    t() %>%
+    as_tibble(rownames="sample"),
+  
+  ifn_modules =
+    annotated_modules %>%
+    filter(type == "Interferon") %>%
+    pull(module),
+  
+  inflame_modules =
+    annotated_modules %>%
+    filter(type == "Inflammation") %>%
+    pull(module),
+  
+  ifn_scores =
+    colData(dds_with_scores)[,ifn_modules] %>%
+    as.data.frame() %>%
+    as_tibble(rownames="sample"),
+  
+  inflammation_scores =
+    colData(dds_with_scores)[,inflame_modules] %>%
+    as.data.frame() %>%
+    as_tibble(rownames="sample"),
+  
+  ifn_scores_with_viral =
+    inner_join(viral_exprs, ifn_scores),
+  
+  inflammation_scores_with_viral =
+    inner_join(viral_exprs, inflammation_scores),
+    
   report = rmarkdown::render(
     knitr_in("report.rmd"),
     output_file = file_out("report.html"),

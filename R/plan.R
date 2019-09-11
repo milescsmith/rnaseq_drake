@@ -1,8 +1,9 @@
 plan = drake_plan(
-  annot = tibble(transcript = gencodev31$transcript_id, 
-                 gene_name = gencodev31$gene_name) %>%
-    distinct() %>%
-    filter(!is.na(transcript)),
+  # annot = tibble(transcript = gencodev31$transcript_id, 
+  #                gene_name = gencodev31$gene_name) %>%
+  #   distinct() %>%
+  #   filter(!is.na(transcript)),
+  
   ## Read and process metadata:
   md =
     import_table(file=metadata_file,
@@ -10,7 +11,7 @@ plan = drake_plan(
                  FUN=read_excel, 
                  sheet = "main", 
                  col_types = c("numeric", 
-                               rep("text",11),
+                               rep("text",10),
                                "numeric",
                                rep("text",6),
                                rep("numeric", 3)),
@@ -35,10 +36,10 @@ plan = drake_plan(
     mutate(project = factor(project),
            study_group = factor(study_group),
            disease_class = factor(disease_class),
-           run_id = factor(run_id)) %>% 
-    dplyr::group_by(study_group) %>% 
-    dplyr::sample_n(5) %>% 
-    ungroup(),
+           run_id = factor(run_id)), # %>% 
+    # dplyr::group_by(study_group) %>% 
+    # dplyr::sample_n(5) %>% 
+    # ungroup(),
   
   #Inspect the metadata:
   md_cat_data = inspect_cat(md),
@@ -50,7 +51,7 @@ plan = drake_plan(
   #of all files ending in "h5" which each list member named for the sample it represents.
   
   tx_sample_names = dir(path = seq_file_directory,
-                        pattern = "sf$",
+                        pattern = "quant.sf.gz",
                         recursive = TRUE,
                         full.name = TRUE) %>% 
     grep(pattern = "Undetermined|NONE", invert = TRUE, value = TRUE) %>% 
@@ -64,7 +65,7 @@ plan = drake_plan(
     map_chr(`[[`,1),
   
   tx_files = dir(path = seq_file_directory,
-                 pattern = "sf$",
+                 pattern = "quant.sf.gz",
                  recursive = TRUE,
                  full.name = TRUE) %>% 
     grep(pattern = "Undetermined|NONE", invert = TRUE, value = TRUE) %>%
@@ -126,6 +127,7 @@ plan = drake_plan(
   annotation_info = as.data.frame(colData(dds_processed))[,c("disease_class",
                                                              "study_group",
                                                              "run_id",
+                                                             "sex",
                                                              "initial_concentration_ng_ul",
                                                              "final_concentration_ng_ul",
                                                              "rin")],
@@ -239,7 +241,7 @@ plan = drake_plan(
     pull(gene),
   
   #fig.width=10, fig.height=9
-  ISGs = intersect(c("STAT1", "ADAR", "ABCE1", "RNASEL", "EGR1", "TYK2", "IFNAR1",
+  ISGs = intersect(c("STAT1", "ADAR", "ABCE1", "RNASEL", "TYK2", "IFNAR1",
                      "IFNB1", "STAT2", "IFNAR2", "JAK1", "SAMHD1", 
                      "SOCS1", "SOCS3", "STAT1", "ISG20", "IFITM3", "IFITM1", "IRF9", "ISG15", 
                      "IFI6", "IFIT3", "USP18", "IP6K2", "PSMB8", "IFIT1", "IRF4", "IRF5", "IRF1", 
@@ -286,6 +288,10 @@ plan = drake_plan(
       brewer.pal(12, "Paired"))(length(run_groups)) %>%
     `names<-`(run_groups),
   
+  chr_pal = c("Y" = "#0000FF", "X" = "#FF0000"),
+  
+  sex_pal = c("Male" = "#0000FF", "Female" = "#FF0000"),
+  
   comparison_grouping_variable_colors = c("#000000",
                                           "#FF9999") %>% `names<-`(c(control_group, experimental_group)),
   
@@ -293,8 +299,10 @@ plan = drake_plan(
     list(
       comparison_grouping_variable_colors,
       run_id_color_set,
-      type_pal
-      ) %>% `names<-`(c(comparison_grouping_variable, "run_id", "type")),
+      type_pal,
+      chr_pal,
+      sex_pal
+      ) %>% `names<-`(c(comparison_grouping_variable, "run_id", "type", "chr", "sex")),
   
   module_scores =
     colData(dds_with_scores) %>%
@@ -309,7 +317,45 @@ plan = drake_plan(
     select(sample, 
            one_of(annotated_modules$module)) %>%
     column_to_rownames("sample"),
+
+  viral_transcripts =
+    annot %>%
+    filter(!str_detect(string = transcript,
+                       pattern = "^ENST")) %>%
+    pull(gene_name) %>%
+    intersect(rownames(vsd_exprs)),
   
+  viral_exprs =
+    vsd_exprs[viral_transcripts,] %>%
+    t() %>%
+    as_tibble(rownames="sample"),
+  
+  ifn_modules =
+    annotated_modules %>%
+    filter(type == "Interferon") %>%
+    pull(module),
+  
+  inflame_modules =
+    annotated_modules %>%
+    filter(type == "Inflammation") %>%
+    pull(module),
+  
+  ifn_scores =
+    colData(dds_with_scores)[,ifn_modules] %>%
+    as.data.frame() %>%
+    as_tibble(rownames="sample"),
+  
+  inflammation_scores =
+    colData(dds_with_scores)[,inflame_modules] %>%
+    as.data.frame() %>%
+    as_tibble(rownames="sample"),
+  
+  ifn_scores_with_viral =
+    inner_join(viral_exprs, ifn_scores),
+  
+  inflammation_scores_with_viral =
+    inner_join(viral_exprs, inflammation_scores),
+    
   report = rmarkdown::render(
     knitr_in("report.rmd"),
     output_file = file_out("report.html"),

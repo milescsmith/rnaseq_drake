@@ -11,11 +11,11 @@ output:
 
 ```{css, echo=FALSE}
     body .main-container {
-      max-width: 1800px !important;
-      width: 1800px !important;
+      max-width: 1500px !important;
+      width: 1500px !important;
     }
     body {
-      max-width: 1880px !important;
+      max-width: 1500px !important;
     }
 ```
 
@@ -26,6 +26,8 @@ loadd(annotation_info,
   annotated_module_scores,
   annotated_modules,
   dds_with_scores,
+  ifn_scores_with_viral,
+  inflammation_scores_with_viral,
   ISGs,
   group_pal,
   md,
@@ -52,6 +54,7 @@ loadd(annotation_info,
   umap_plot2,
   umap_plot,
   umap_results,
+  viral_transcripts,
   vsd_exprs)
 ```
 
@@ -131,7 +134,7 @@ if (!all(md$sample_name %in% names(tx_files))){
 
 ## Sample QC filtering
 
-Samples with a PC1 zscore > 3 (those that fall beyond the red line below) are dropped from analysis.
+Samples with a PC1 zscore > 3 (those that fall outside the red lines below) are dropped from analysis.
 ```{r, fig.width=6, fig.height=6}
 pca_qc %>% ggplot(aes(x = PC1,
                       y = PC2,
@@ -139,13 +142,21 @@ pca_qc %>% ggplot(aes(x = PC1,
   geom_point(alpha = 0.5) +
   geom_vline(aes(xintercept = (3*sd(pca_qc$PC1)) + mean(pca_qc$PC1)),
              color = "red") +
+  geom_vline(aes(xintercept = -(3*sd(pca_qc$PC1)) + mean(pca_qc$PC1)),
+             color = "red") +
   scale_color_gradient(low = "grey90",high = "red") +
   theme_cowplot()
 ```
 
 ```{r}
 if (length(removed_outliers) > 0) {
-  message(str_glue("Removing the following samples: {removed_outliers}"))
+  message("Removing the following samples:")
+  md %>%
+    filter(sample_name %in% removed_outliers) %>%
+    kable() %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+      full_width = FALSE)
 }
 ```
 
@@ -160,7 +171,6 @@ pheatmap(sampleDistMatrix,
          show_colnames = TRUE,
          annotation_colors = group_pal,
          angle_col = 45)
-
 ```
 
 # Differential Gene Expression
@@ -170,11 +180,21 @@ print("Log fold change results:")
 summary(res)
 ```
 
+###
+```{r}
+plotMA(res, ylim = c(-2,2))
+```
+
+### Dispersion estimates
+```{r}
+plotDispEsts(dds_with_scores)
+```
+
 ### 25 genes with largest negative log-fold change in SLE
 ```{r}
 down_table %>%
-  select(-baseMean) %>%
-  filter(log2FoldChange > 0) %>%
+  dplyr::select(-baseMean) %>%
+  dplyr::filter(log2FoldChange > 0) %>%
   arrange(desc(log2FoldChange)) %>%
   mutate(
     gene = cell_spec(gene,
@@ -184,6 +204,7 @@ down_table %>%
                      bold = TRUE,
                      background = spec_color(padj)),
     log2FoldChange = color_bar("tomato")(log2FoldChange)) %>%
+  ungroup() %>%
   rename(pvalue = paste0("pvalue", footnote_marker_symbol(1)),
          stat = paste0("stat", footnote_marker_symbol(2)),
          padj = paste0("padj", footnote_marker_symbol(3)),
@@ -211,6 +232,7 @@ up_table %>%
                      bold = TRUE,
                      background = spec_color(padj)),
     log2FoldChange = color_bar("lightgreen")(log2FoldChange)) %>%
+  ungroup() %>%
   rename(pvalue = paste0("pvalue", footnote_marker_symbol(1)),
          stat = paste0("stat", footnote_marker_symbol(2)),
          padj = paste0("padj", footnote_marker_symbol(3)),
@@ -250,9 +272,15 @@ t(vsd_exprs)[,ISGs] %>%
 
 ### Expression of individual genes in the M1.2, M3.4, and M5.12 gene modules
 ```{r fig.height=9, fig.width=12}
-t(vsd_exprs)[,rownames(module_ISGs)] %>%
-    pheatmap(scale = 'column',
-             border_color = NA,
+vsd_exprs %>%
+  as_tibble(rownames = "gene") %>%
+  filter(gene %in% rownames(module_ISGs)) %>%
+  filter(gene != "MT1A") %>%
+  column_to_rownames("gene") %>%
+  t() %>%
+  `[`(,rownames(module_ISGs)[(rownames(module_ISGs) != "MT1A")]) %>%
+  pheatmap(scale = 'column',
+           border_color = NA,
              fontsize_row = 6, 
              fontsize_col = 6, 
              annotation_row = annotation_info,
@@ -397,7 +425,7 @@ pheatmap(annotated_module_scores,
 
 ## All modules
 
-```{r fig.height=9, fig.width=9}
+```{r fig.height=9, fig.width=11}
 pheatmap(module_scores,
          scale = 'column',
          border_color = NA,
@@ -409,6 +437,64 @@ pheatmap(module_scores,
          show_rownames = FALSE,
          angle_col = 315)
 ```
+
+# Viral trancription
+
+Samples were examined for transcripts from the following viruses:
+HSV-1, HSV-2, VZV, EBV, EBV-2, HCMV, HHV7, KSHV, Adenovirus 2, B19, HIV-1, HBV, HPV-2, HPV-16, JCV, and MCV-1
+
+## Detected viral transcription and Interferon module scores
+
+```{r fig.height=11, fig.width=8}
+ifn_scores_with_viral %>%
+  column_to_rownames("sample") %>%
+  pheatmap(scale="column",
+           annotation_colors = group_pal,
+           annotation_row = annotation_info)
+```
+
+## Detected viral transcription and Inflammatory module scores
+
+```{r fig.height=11, fig.width=8}
+inflammation_scores_with_viral %>%
+  column_to_rownames("sample") %>%
+  pheatmap(scale="column",
+           annotation_colors = group_pal,
+           annotation_row = annotation_info)
+```
+
+
+# Sample Sanity check
+
+To determine if there is a gross mixup of samples, examine the expression of sex-specific transcripts to ensure that only female-subject samples express "XIST" and male-subject samples "DDX3Y:
+
+```{r}
+sex_specific_genes <- tibble(chr = c(rep("Y",16), rep("X",2)),
+                             symbol = c("DDX3Y","EIF1AY",
+                                       "KDM5D","NLGN4Y",
+                                       "PCDH11Y","PRORY",
+                                       "PRY","PRY2",
+                                       "RPS4Y1","RPS4Y2",
+                                       "TBL1Y","TMSB4Y",
+                                       "USP9Y","UTY",
+                                       "VCY","ZFY",
+                                       "XIST","ZFX"))
+
+t(vsd_exprs)[,c(sex_specific_genes[['symbol']])] %>%
+  pheatmap(scale='column',
+           border_color = NA,
+           fontsize_row=6,
+           fontsize_col = 6,
+           annotation_row = annotation_info[,c("sex","run_id", "disease_class", "study_group")],
+           annotation_colors = group_pal,
+           angle_col=315,
+           annotation_col = column_to_rownames(sex_specific_genes, "symbol"),
+           cluster_cols = FALSE,
+           breaks=c(-5,-4,-3,-2,-1,0,1,2,3,4,5),
+           color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(10))
+```
+
+These appear to be correct.
 
 ```{r}
 vsd_exprs %>% 

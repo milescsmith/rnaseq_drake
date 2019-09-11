@@ -31,7 +31,7 @@ remove_outliers <- function(dds, zscore_cutoff){
   
   outliers <- pca_res %>% filter(zscore >= zscore_cutoff) %>% pull(sample)
   if (length(outliers > 0)){
-    dds <- dds[,colnames(!dds %in% outliers)] 
+    dds <- dds[,colnames(dds) %nin% outliers] 
   }
   return(list(dds = dds, pca = pca_res, removed = outliers))
 }

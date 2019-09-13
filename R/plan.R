@@ -5,6 +5,8 @@ plan = drake_plan(
   #   filter(!is.na(transcript)),
   
   ## Read and process metadata:
+  # found elsewhere that samples with a concentration below this level cluster together and differ substantially
+  
   md =
     import_table(file=metadata_file,
                  bucket="memory_alpha",
@@ -17,11 +19,15 @@ plan = drake_plan(
                                rep("numeric", 3)),
                  trim_ws = TRUE,
                  na = "n/a",
-                 .name_repair = ~ make_clean_names) %>% 
+                 .name_repair = ~ make_clean_names) %>%
+    mutate(sample_name = make_clean_names(sample_name, case = "all_caps")) %>%
     filter(final_concentration_ng_ul > 1.5,
-           project %in% projects_to_include,
-           project %nin% projects_to_exclude) %>% # found elsewhere that samples with a concentration below this level cluster together and differ substantially 
-    select(sample_name, #Select the portions of the metadata that are useful:
+           project %in% (projects_to_include %||% unique(.data$project)),
+           project %nin% projects_to_exclude,
+           disease_class %in% (disease_classes_to_include %||% unique(.data$disease_class)),
+           disease_class %nin% disease_classes_to_exclude) %>% 
+    #Select the portions of the metadata that are useful:
+    select(sample_name,
            study_group,
            disease_class,
            project,
@@ -36,10 +42,8 @@ plan = drake_plan(
     mutate(project = factor(project),
            study_group = factor(study_group),
            disease_class = factor(disease_class),
-           run_id = factor(run_id)), # %>% 
-    # dplyr::group_by(study_group) %>% 
-    # dplyr::sample_n(5) %>% 
-    # ungroup(),
+           run_id = factor(run_id),
+           initial_concentration_ng_ul = replace_na(initial_concentration_ng_ul, 200)),
   
   #Inspect the metadata:
   md_cat_data = inspect_cat(md),
@@ -62,7 +66,8 @@ plan = drake_plan(
     map(function(x)`[[`(x,length(x)-1)) %>%
     # strip the sequencing run part ("_S156_L002") of the name
     str_split(pattern = '_') %>% 
-    map_chr(`[[`,1),
+    map_chr(`[[`,1) %>%
+    make_clean_names(case = "all_caps"),
   
   tx_files = dir(path = seq_file_directory,
                  pattern = "quant.sf.gz",
@@ -73,16 +78,18 @@ plan = drake_plan(
     `[`(!is.na(match(names(.), md$sample_name))),
   
   #Most data structures that support row or column names cannot tolerate duplicates.  Are there any duplicate samples that need to be fixed?
-  md_dupes = md %>% filter(sample_name %in% tx_sample_names) %>% get_dupes(sample_name),
-  
-  dedupe = deduplicate_samples(md, tx_files),
-  deduplicated_md = dedupe$md,
-  deduplicated_tx_files = dedupe$sample,
+  # md_dupes = md %>% filter(sample_name %in% tx_sample_names) %>% get_dupes(sample_name),
+  # 
+  # dedupe = deduplicate_samples(md, tx_files),
+  # deduplicated_md = dedupe$md,
+  # deduplicated_tx_files = dedupe$sample,
   
   # Read in count files
-  final_md = deduplicated_md[which(deduplicated_md[['sample_name']] %in% names(deduplicated_tx_files)),] %>%
+  # final_md = deduplicated_md[which(deduplicated_md[['sample_name']] %in% names(deduplicated_tx_files)),] %>%
+  #   column_to_rownames('sample_name'),
+  final_md = md[which(md[['sample_name']] %in% names(tx_files)),] %>%
     column_to_rownames('sample_name'),
-  samples = deduplicated_tx_files[md[['sample_name']]],
+  samples = tx_files[rownames(final_md)],
   counts = tximport(samples,
                     type = "salmon",
                     txIn = TRUE,
@@ -95,7 +102,7 @@ plan = drake_plan(
   # and differential expression analysis.  This can take quite some 
   # time, especially as the study design grows more complex.
   dds_import = DESeqDataSetFromTximport(txi = counts,
-                                        colData = md,
+                                        colData = final_md,
                                         design = study_design), 
   dds_filtered = dds_import %>%
     `[`(rowSums(counts(.)) > 1, ) %>%

@@ -1,0 +1,22 @@
+image: docker:latest
+
+services:
+  - docker:dind
+
+stages:
+  - build
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+before_script:
+  - docker login -u gitlab-ci-token -p ${CI_BUILD_TOKEN} ${CI_REGISTRY}
+
+rnaseq-drake:
+  stage: build-base
+  variables:
+    IMAGE_NAME: ${CI_REGISTRY_IMAGE}/${CI_BUILD_NAME}
+  script:
+    - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME}
+    - docker run ${IMAGE_NAME} R
+    - docker push ${IMAGE_NAME}

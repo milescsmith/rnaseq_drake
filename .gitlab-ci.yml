@@ -1,12 +1,14 @@
 # This file is a template, and might need editing before it works on your project.
 image: docker:latest
-stage: build
+stages: 
+  - build
 services:
   - docker:dind
 before_script:
   - docker login -u gitlab-ci-token -p ${CI_BUILD_TOKEN} ${CI_REGISTRY}
   
 rnaseq-drake:
+  stage: build
   variables:
     IMAGE_NAME: ${CI_REGISTRY_IMAGE}/${CI_BUILD_NAME}
   script:
@@ -16,6 +18,7 @@ rnaseq-drake:
     - docker push "$CI_REGISTRY_IMAGE"
 
 rnaseq-drake-mro:
+  stage: build
   variables:
     IMAGE_NAME: ${CI_REGISTRY_IMAGE}/${CI_BUILD_NAME}
   script:

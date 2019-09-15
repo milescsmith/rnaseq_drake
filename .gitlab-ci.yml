@@ -12,7 +12,7 @@ rnaseq-drake:
   variables:
     IMAGE_NAME: ${CI_REGISTRY_IMAGE}/${CI_BUILD_NAME}
   script:
-    - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} release
+    - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} rnaseq-drake
     - docker tag ${IMAGE_NAME} ${IMAGE_NAME}
     - docker run ${IMAGE_NAME} R --version
     - docker push "$CI_REGISTRY_IMAGE"
@@ -22,7 +22,7 @@ rnaseq-drake-mro:
   variables:
     IMAGE_NAME: ${CI_REGISTRY_IMAGE}/${CI_BUILD_NAME}
   script:
-    - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} release
+    - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} rnaseq-drake-mro
     - docker tag ${IMAGE_NAME} ${IMAGE_NAME}
     - docker run ${IMAGE_NAME} R --version
     - docker push "$CI_REGISTRY_IMAGE"

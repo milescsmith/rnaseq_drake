@@ -4,7 +4,7 @@ stage: build
 services:
   - docker:dind
 before_script:
-  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  - docker login -u gitlab-ci-token -p ${CI_BUILD_TOKEN} ${CI_REGISTRY}
   
 rnaseq-drake:
   variables:

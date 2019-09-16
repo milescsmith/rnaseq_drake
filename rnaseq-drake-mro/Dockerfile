@@ -3,6 +3,7 @@ LABEL maintainer="miles-smith@omrf.org"
 RUN export DEBIAN_FRONTEND=noninteractive; apt-get -y update \
   && apt-get install -y git-core \
 	libcurl4-openssl-dev \
+	libglu1-mesa-dev \
 	libpng-dev \
 	libssl-dev \
 	libxml2-dev \

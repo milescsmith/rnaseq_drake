@@ -16,7 +16,7 @@ rnaseq-drake:
     - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} rnaseq-drake
     - docker tag ${IMAGE_NAME} ${IMAGE_NAME}
     - docker run ${IMAGE_NAME} R --version
-    - docker push "$CI_REGISTRY_IMAGE"
+    - docker push ${CI_REGISTRY_IMAGE}:r
 
 rnaseq-drake-mro:
   stage: build
@@ -26,4 +26,4 @@ rnaseq-drake-mro:
     - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} rnaseq-drake-mro
     - docker tag ${IMAGE_NAME} ${IMAGE_NAME}
     - docker run ${IMAGE_NAME} R --version
-    - docker push "$CI_REGISTRY_IMAGE"
+    - docker push ${CI_REGISTRY_IMAGE}:mro

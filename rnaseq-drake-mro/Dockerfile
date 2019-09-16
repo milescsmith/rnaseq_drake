@@ -15,10 +15,9 @@ RUN export DEBIAN_FRONTEND=noninteractive; apt-get -y update \
   rm -rf /tmp/downloaded_packages/* && \
   rm -rf /var/lib/apt/lists/*
 
-RUN Rscript -e "install.packages(c('rlang', 'magrittr', 'pheatmap', 'kableExtra', 'IRdisplay', 'janitor', 'remotes', 'RColorBrewer', 'paletteer', 'cowplot', 'irlba', 'ggforce', 'uwot','formattable', 'drake', 'rsvd'))"
+RUN Rscript -e "install.packages(c('rlang', 'magrittr', 'pheatmap', 'kableExtra', 'IRdisplay', 'janitor', 'remotes', 'RColorBrewer', 'paletteer', 'cowplot', 'irlba', 'ggforce', 'uwot','formattable', 'drake', 'rsvd'))" && \
+	Rscript -e "BiocManager::install(c('BiocParallel', 'clusterProfiler', 'DESeq2', 'S4Vectors', 'SummarizedExperiment', 'tximport', 'atlanhq/flyio', 'milescsmith/moduleScoreR', 'tidyverse'))"
 
-RUN Rscript -e "BiocManager::install(c('BiocParallel', 'clusterProfiler', 'DESeq2', 'S4Vectors', 'SummarizedExperiment', 'tximport'))"
-
-RUN Rscript -e "BiocManager::install(c('atlanhq/flyio', 'milescsmith/moduleScoreR'))"
+WORKDIR /root
 
 CMD ["Rscript"]

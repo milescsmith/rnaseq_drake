@@ -1,22 +1,28 @@
+# This file is a template, and might need editing before it works on your project.
 image: docker:latest
-
+stages: 
+  - build
 services:
   - docker:dind
-
-stages:
-  - build
-
-variables:
-  DOCKER_DRIVER: overlay2
-
 before_script:
   - docker login -u gitlab-ci-token -p ${CI_BUILD_TOKEN} ${CI_REGISTRY}
-
+  
 rnaseq-drake:
   stage: build
   variables:
     IMAGE_NAME: ${CI_REGISTRY_IMAGE}/${CI_BUILD_NAME}
   script:
-    - docker build --pull ${IMAGE_NAME} -t ${IMAGE_NAME}
-    - docker run ${IMAGE_NAME} Rscript
-    - docker push ${IMAGE_NAME}
+    - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} rnaseq-drake
+    - docker tag ${IMAGE_NAME} ${IMAGE_NAME}
+    - docker run ${IMAGE_NAME} R --version
+    - docker push "$CI_REGISTRY_IMAGE"
+
+rnaseq-drake-mro:
+  stage: build
+  variables:
+    IMAGE_NAME: ${CI_REGISTRY_IMAGE}/${CI_BUILD_NAME}
+  script:
+    - docker build --pull --cache-from ${IMAGE_NAME} -t ${IMAGE_NAME} rnaseq-drake-mro
+    - docker tag ${IMAGE_NAME} ${IMAGE_NAME}
+    - docker run ${IMAGE_NAME} R --version
+    - docker push "$CI_REGISTRY_IMAGE"

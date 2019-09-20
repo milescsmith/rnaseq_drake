@@ -8,42 +8,13 @@ plan = drake_plan(
   # found elsewhere that samples with a concentration below this level cluster together and differ substantially
   
   md =
-    import_table(file=metadata_file,
-                 bucket="memory_alpha",
-                 FUN=read_excel, 
-                 sheet = "main", 
-                 col_types = c("numeric", 
-                               rep("text",10),
-                               "numeric",
-                               rep("text",6),
-                               rep("numeric", 3)),
-                 trim_ws = TRUE,
-                 na = "n/a",
-                 .name_repair = ~ make_clean_names) %>%
-    mutate(sample_name = make_clean_names(sample_name, case = "all_caps")) %>%
-    filter(final_concentration_ng_ul > 1.5,
-           project %in% (projects_to_include %||% unique(.data$project)),
-           project %nin% projects_to_exclude,
-           disease_class %in% (disease_classes_to_include %||% unique(.data$disease_class)),
-           disease_class %nin% disease_classes_to_exclude) %>% 
-    #Select the portions of the metadata that are useful:
-    select(sample_name,
-           study_group,
-           disease_class,
-           project,
-           run_id,
-           sample_alias,
-           ord,
-           sex,
-           race_code,
-           initial_concentration_ng_ul,
-           final_concentration_ng_ul,
-           rin) %>%
-    mutate(project = factor(project),
-           study_group = factor(study_group),
-           disease_class = factor(disease_class),
-           run_id = factor(run_id),
-           initial_concentration_ng_ul = replace_na(initial_concentration_ng_ul, 200)),
+    read_csv(file = "/home/milo/datasets/bulk_preclinical/original_patient_md.csv") %>%
+    clean_names() %>%
+    mutate(ethnicity = factor(ethnicity),
+           disease_class = factor(class),
+           celltype = factor(celltype),
+           sample = make_clean_names(sample, case = "all_caps")) %>%
+    select(-class, -rin, -conc, -cell_count),
   
   #Inspect the metadata:
   md_cat_data = inspect_cat(md),
@@ -63,10 +34,7 @@ plan = drake_plan(
     # When str_split splits a string, it makes everything before the matching pattern into an element of the returned list
     # even if there is nothing before the split - you just get an empty element
     # thus, the seventh element matches '012210101_S156_L002'
-    map(function(x)`[[`(x,length(x)-1)) %>%
-    # strip the sequencing run part ("_S156_L002") of the name
-    str_split(pattern = '_') %>% 
-    map_chr(`[[`,1) %>%
+    map_chr(function(x)`[[`(x,length(x)-1)) %>%
     make_clean_names(case = "all_caps"),
   
   tx_files = dir(path = seq_file_directory,
@@ -75,7 +43,7 @@ plan = drake_plan(
                  full.name = TRUE) %>% 
     grep(pattern = "Undetermined|NONE", invert = TRUE, value = TRUE) %>%
     `names<-`(tx_sample_names) %>%
-    `[`(!is.na(match(names(.), md$sample_name))),
+    `[`(!is.na(match(names(.), md$sample))),
   
   #Most data structures that support row or column names cannot tolerate duplicates.  Are there any duplicate samples that need to be fixed?
   # md_dupes = md %>% filter(sample_name %in% tx_sample_names) %>% get_dupes(sample_name),
@@ -87,8 +55,8 @@ plan = drake_plan(
   # Read in count files
   # final_md = deduplicated_md[which(deduplicated_md[['sample_name']] %in% names(deduplicated_tx_files)),] %>%
   #   column_to_rownames('sample_name'),
-  final_md = md[which(md[['sample_name']] %in% names(tx_files)),] %>%
-    column_to_rownames('sample_name'),
+  final_md = md[which(md[['sample']] %in% names(tx_files)),] %>%
+    column_to_rownames('sample'),
   samples = tx_files[rownames(final_md)],
   counts = tximport(samples,
                     type = "salmon",
@@ -114,7 +82,7 @@ plan = drake_plan(
   ## Sample QC filtering
   # Remove samples that have a PC1 Z-score > 3. This matches what I was doing visually, but is vastly quicker.
   outlier_qc = remove_outliers(dds = dds_filtered,
-                           zscore_cutoff = 3),
+                               zscore_cutoff = 3),
   dds_qc = outlier_qc$dds,
   pca_qc = outlier_qc$pca,
   removed_outliers = outlier_qc$removed,
@@ -123,7 +91,7 @@ plan = drake_plan(
   # failure or to observe progress
   
   dds_processed = DESeq(dds_qc,
-               parallel = TRUE),
+                        parallel = TRUE),
   vsd = vst(dds_processed),
   vsd_exprs = assay(vsd),
   
@@ -132,12 +100,8 @@ plan = drake_plan(
   sampleDistMatrix = as.matrix(sample_dists),
   
   annotation_info = as.data.frame(colData(dds_processed))[,c("disease_class",
-                                                             "study_group",
-                                                             "run_id",
-                                                             "sex",
-                                                             "initial_concentration_ng_ul",
-                                                             "final_concentration_ng_ul",
-                                                             "rin")],
+                                                             "ethnicity",
+                                                             "celltype")],
   
   # Minus the noise, actual differences and similarities are now apparent.
   sample_dendrogram = sample_dists %>% hclust() %>% as.dendrogram(),
@@ -161,27 +125,13 @@ plan = drake_plan(
     theme_cowplot(),
   
   #fig.width=12, fig.height=6
-  pca_plot2 = pca_res %>%
-    ggplot(aes(x = PC1,
-               y = PC2,
-               color = run_id)) +
-    geom_point(alpha = 0.3) + 
-    #geom_mark_hull(aes(fill=run_id)) +
-    scale_color_paletteer_d(package="ggsci",
-                            palette = "category20_d3") +
-    scale_fill_paletteer_d(package="ggsci",
-                           palette = "category20_d3") +
-    labs(color = "run_id") +
-    theme_cowplot(),
-  
-  #fig.width=12, fig.height=6
   umap_results = umap(t(vsd_exprs),
                       n_threads = detectCores(),
                       n_sgd_threads = detectCores(),
                       verbose = TRUE) %>% 
     as_tibble(.name_repair = "unique") %>%
     `colnames<-`(c("umap_1",
-                  "umap_2")) %>%
+                   "umap_2")) %>%
     mutate(sample = colnames(vsd_exprs)) %>% 
     inner_join(as_tibble(colData(dds_processed),
                          rownames="sample")),
@@ -196,56 +146,37 @@ plan = drake_plan(
     labs(color = "disease_class") +
     theme_cowplot(),
   
-  #fig.width=12, fig.height=6
-  umap_plot2 = umap_results %>% 
-    ggplot(aes(x = umap_1, 
-               y = umap_2,
-               color = run_id)) +
-    geom_point(alpha=0.5) +
-    scale_color_paletteer_d(package="ggsci",
-                            palette = "category20_d3") +
-    scale_fill_paletteer_d(package="ggsci",
-                           palette = "category20_d3") +
-    theme_cowplot(),
   
-  res = results(
-    object = dds_processed,
-    contrast = c(comparison_grouping_variable, 
-                 experimental_group,
-                 control_group),
-    alpha = 0.05,
-    parallel = TRUE),
-  
-  down_table = 
-    res %>%
-    as_tibble(rownames = "gene") %>%
-    filter(padj <= 0.05) %>%
-    mutate(log2FoldChange = -log2FoldChange) %>%
-    mutate_at(vars(-gene), list(~signif(., 2))) %>%
-    top_n(25, log2FoldChange) %>%
-    arrange(desc(log2FoldChange)),
-  
-  up_table = 
-    res %>%
-    as_tibble(rownames = "gene") %>%
-    filter(padj <= 0.05) %>%
-    mutate_at(vars(-gene), list(~signif(., 2))) %>%
-    top_n(25, log2FoldChange) %>%
-    arrange(desc(log2FoldChange)),
-  
-  degs = 
-    res %>% 
-    as_tibble(rownames = "gene") %>%
-    filter(padj < 0.05),
-  
-  top_up = degs %>%
-    filter(log2FoldChange > 0) %>%
-    top_n(100, log2FoldChange) %>%
-    pull(gene),
-  top_down = degs %>%
-    filter(log2FoldChange < 0) %>%
-    top_n(100, -log2FoldChange) %>%
-    pull(gene),
+  ea_t = split_process(mother_obj = dds_processed,
+                       selected_celltype = "T",
+                       selected_ethnicity = "EA",
+                       zscore_cutoff = 3,
+                       comparison_var = disease_class),
+  ea_b = split_process(mother_obj = dds_processed,
+                       selected_celltype = "B",
+                       selected_ethnicity = "EA",
+                       zscore_cutoff = 3,
+                       comparison_var = disease_class),
+  ea_m = split_process(mother_obj = dds_processed,
+                       selected_celltype = "M",
+                       selected_ethnicity = "EA",
+                       zscore_cutoff = 3,
+                       comparison_var = disease_class),
+  aa_t = split_process(mother_obj = dds_processed,
+                       selected_celltype = "T",
+                       selected_ethnicity = "AA",
+                       zscore_cutoff = 3,
+                       comparison_var = disease_class),
+  aa_b = split_process(mother_obj = dds_processed,
+                       selected_celltype = "B",
+                       selected_ethnicity = "AA",
+                       zscore_cutoff = 3,
+                       comparison_var = disease_class),
+  aa_m = split_process(mother_obj = dds_processed,
+                       selected_celltype = "M",
+                       selected_ethnicity = "AA",
+                       zscore_cutoff = 3,
+                       comparison_var = disease_class),
   
   #fig.width=10, fig.height=9
   ISGs = intersect(c("STAT1", "ADAR", "ABCE1", "RNASEL", "TYK2", "IFNAR1",
@@ -284,32 +215,19 @@ plan = drake_plan(
     `names<-`(unique(annotated_modules$type)),
   
   # we manually setup the palettes for pheatmap because letting it automatically pick the colors results in terrible choices
-  run_groups =
-    colData(dds_with_scores) %>%
-    as_tibble() %>%
-    pull(run_id) %>%
-    unique(),
- 
-  run_id_color_set =
-    colorRampPalette(
-      brewer.pal(12, "Paired"))(length(run_groups)) %>%
-    `names<-`(run_groups),
   
-  chr_pal = c("Y" = "#0000FF", "X" = "#FF0000"),
-  
-  sex_pal = c("Male" = "#0000FF", "Female" = "#FF0000"),
-  
-  comparison_grouping_variable_colors = c("#000000",
-                                          "#FF9999") %>% `names<-`(c(control_group, experimental_group)),
-  
+  class_pal = paletteer_d("ggthemes", "calc")[1:3] %>% `names<-`(c("NEG","POS","SLE")),
+  ethnicity_pal = paletteer_d("ggthemes", "calc")[c(4,11)] %>% `names<-`(c("AA", "EA")),
+  celltype_pal = paletteer_d("ggthemes", "calc")[8:10] %>% `names<-`(c("T","B","M")),
+  pathway_pal = paletteer_d("awtools", "ppalette")[1:7] %>% `names<-`(unique(sgl$pathway)),
   group_pal =
     list(
-      comparison_grouping_variable_colors,
-      run_id_color_set,
+      class_pal,
+      ethnicity_pal,
+      celltype_pal,
       type_pal,
-      chr_pal,
-      sex_pal
-      ) %>% `names<-`(c(comparison_grouping_variable, "run_id", "type", "chr", "sex")),
+      pathway_pal
+    ) %>% `names<-`(c("disease_class", "ethnicity", "celltype", "type", "pathway")),
   
   module_scores =
     colData(dds_with_scores) %>%
@@ -324,18 +242,6 @@ plan = drake_plan(
     select(sample, 
            one_of(annotated_modules$module)) %>%
     column_to_rownames("sample"),
-
-  viral_transcripts =
-    annot %>%
-    filter(!str_detect(string = transcript,
-                       pattern = "^ENST")) %>%
-    pull(gene_name) %>%
-    intersect(rownames(vsd_exprs)),
-  
-  viral_exprs =
-    vsd_exprs[viral_transcripts,] %>%
-    t() %>%
-    as_tibble(rownames="sample"),
   
   ifn_modules =
     annotated_modules %>%
@@ -357,12 +263,6 @@ plan = drake_plan(
     as.data.frame() %>%
     as_tibble(rownames="sample"),
   
-  ifn_scores_with_viral =
-    inner_join(viral_exprs, ifn_scores),
-  
-  inflammation_scores_with_viral =
-    inner_join(viral_exprs, inflammation_scores),
-    
   report = rmarkdown::render(
     knitr_in("report.rmd"),
     output_file = file_out("report.html"),

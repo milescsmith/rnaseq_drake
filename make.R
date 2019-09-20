@@ -1,5 +1,5 @@
-source("R/packages.R")  # Load your packages, e.g. library(drake).
-source("R/functions.R") # Define your custom code as a bunch of functions.
+source("/home/milo/datasets/bulk_preclinical/rnaseq_drake_salmon/R/packages.R")
+source("/home/milo/datasets/bulk_preclinical/rnaseq_drake_salmon/R/functions.R")
 
 
 ### Setup bucket access
@@ -15,22 +15,17 @@ import_rda(file="references/banchereau_modules.RData",
            data_source = "gcs")
 
 ### Setup project variables
-projects_to_include = NULL
-projects_to_exclude = c("none")
-disease_classes_to_include = c("Control", "SLE")
-disease_classes_to_exclude = NULL
-study_design = ~ initial_concentration_ng_ul + run_id + disease_class
+study_design = ~ ethnicity + celltype + disease_class
 comparison_grouping_variable = "disease_class"
-control_group = "Control"
-experimental_group = "SLE"
 
 ### Setup file locations
-seq_file_directory = "/home/milo/datasets/novaseq"
-metadata_file = "datasets/rnaseq/novaseq/NovaSeq_Sample_List.xlsx"
+seq_file_directory = "/home/milo/datasets/bulk_preclinical/salmon"
+sgl <- read_csv("~/datasets/bulk_preclinical/sams_rnaseq_genelist.csv", col_names = c("gene","pathway"))
+sfgl <- read_xlsx("~/datasets/bulk_preclinical/sams_full_rnaseq_genelist.csv.xlsx")
 
-source("R/plan.R")      # Create your drake plan.
-config <- drake_config(plan)
-vis_drake_graph(config)
+source("/home/milo/datasets/bulk_preclinical/rnaseq_drake_salmon/R/plan.R")      # Create your drake plan.
+# config <- drake_config(plan)
+# vis_drake_graph(config)
 
 BPPARAM = BiocParallel::MulticoreParam(workers=parallel::detectCores())
 BiocParallel::register(BPPARAM)

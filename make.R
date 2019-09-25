@@ -14,6 +14,10 @@ import_rda(file="references/banchereau_modules.RData",
            bucket = "memory_alpha",
            data_source = "gcs")
 
+import_rda(file="references/kegerreis_ldg_modules.RData",
+           bucket = "memory_alpha",
+           data_source = "gcs")
+
 ### Setup project variables
 projects_to_include = c("Xencor")
 projects_to_exclude = c("none")

@@ -7,7 +7,7 @@ deduplicate_samples <- function(md, samples){
       mutate(sample_name = make_clean_names(string = sample_name, 
                                             case = "all_caps"))
     deduplicated_samples = `names<-`(samples, make_clean_names(string = names(samples),
-                                                                 case = "all_caps"))  
+                                                               case = "all_caps"))  
   } else {
     deduplicated_md = md %>%
       filter(sample_name %in% names(samples))
@@ -15,8 +15,9 @@ deduplicate_samples <- function(md, samples){
   }
   
   return(list(md = deduplicated_md,
-           samples = deduplicated_samples))
+              samples = deduplicated_samples))
 }
+
 
 remove_outliers <- function(dds, zscore_cutoff){
   dds  <- estimateSizeFactors(dds,

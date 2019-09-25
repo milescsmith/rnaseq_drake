@@ -267,7 +267,9 @@ plan = drake_plan(
     arrange(module) %>%
     column_to_rownames("gene"),
   
-  dds_with_scores = scoreEigengenes(dds_processed, module_list = module_list),
+  dds_with_scores =
+    scoreEigengenes(dds_processed, module_list = module_list, score_func = 'rsvd') %>%
+    scoreEigengenes(object = ., module_list = ldg_modules, score_func = 'rsvd'),
   
   annotated_modules = module_annot %>% as_tibble(rownames="module") %>% filter(type != "Undetermined"),
   
@@ -347,6 +349,11 @@ plan = drake_plan(
   
   inflammation_scores =
     colData(dds_with_scores)[,inflame_modules] %>%
+    as.data.frame() %>%
+    as_tibble(rownames="sample"),
+  
+  ldg_scores =
+    colData(dds_with_scores)[,names(ldg_modules)] %>%
     as.data.frame() %>%
     as_tibble(rownames="sample"),
   

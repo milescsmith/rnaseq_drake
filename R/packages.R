@@ -1,28 +1,30 @@
-library(drake)
-library(tidyverse)
-library(DESeq2)
-library(magrittr)
-library(tximport)
-library(pheatmap)
-library(IRdisplay)
-library(kableExtra)
-library(moduleScoreR)
-library(janitor)
-library(RColorBrewer)
-library(paletteer)
-library(readxl)
-library(cowplot)
-library(irlba)
-library(ggforce)
-library(flyio)
-library(inspectdf)
-library(uwot)
-library(BiocParallel)
-library(genefilter)
-library(formattable)
-library(utils)
-library(gtools)
-library(rlang)
-library(scales)
-library(rtracklayer)
-library(viridis)
+librarian::shelf(
+  BiocParallel,
+  cowplot,
+  DESeq2,
+  drake,
+  flyio,
+  formattable,
+  genefilter,
+  ggforce,
+  gtools,
+  inspectdf,
+  IRdisplay,
+  irlba,
+  janitor,
+  kableExtra,
+  magrittr,
+  moduleScoreR,
+  paletteer,
+  pheatmap,
+  RColorBrewer,
+  readxl,
+  rlang,
+  rtracklayer,
+  scales,
+  tidyverse,
+  tximport,
+  utils,
+  uwot,
+  viridis
+)

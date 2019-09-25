@@ -19,9 +19,11 @@ import_rda(file="references/kegerreis_ldg_modules.RData",
            data_source = "gcs")
 
 ### Setup project variables
-projects_to_include = c("Xencor")
+projects_to_include = NULL
 projects_to_exclude = c("none")
-study_design = ~ rin + initial_concentration_ng_ul + run_id + disease_class
+disease_classes_to_include = c("Control", "SLE")
+disease_classes_to_exclude = NULL
+study_design = ~ initial_concentration_ng_ul + run_id + disease_class
 comparison_grouping_variable = "disease_class"
 control_group = "Control"
 experimental_group = "SLE"

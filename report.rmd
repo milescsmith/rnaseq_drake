@@ -199,7 +199,7 @@ print("Log fold change results:")
 summary(res)
 ```
 
-## 25 genes with largest negative log-fold change in SLE
+### 25 genes with largest negative log-fold change in SLE
 ```{r}
 down_table %>%
   dplyr::select(-baseMean) %>%

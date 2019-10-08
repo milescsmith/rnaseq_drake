@@ -19,20 +19,67 @@ deduplicate_samples <- function(md, samples){
 }
 
 
-remove_outliers <- function(dds, zscore_cutoff){
-  dds  <- estimateSizeFactors(dds,
+#' Remove outliers
+#' 
+#' Perform PCA on a dataset and return one in which samples with a PC1
+#' zscore greater than a given cutoff are removed
+#'
+#' @param object 
+#' @param ... 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+remove_outliers <- function(object, ...){
+  UseMethod("remove_outliers")
+}
+
+#' @rdname remove_outliers
+#' @method remove_outliers DGEList
+#' @importFrom irlba prcomp_irlba
+#' @importFrom limma voom
+#' @importFrom tibble as_tibble
+#' @importFrom dplyr mutate inner_join filter pull
+#' @return list
+remove_outliers.DGEList <- function(object, zscore_cutoff, design){
+  v <- voom(object, design)
+  pca_res = prcomp_irlba(v$E)[['rotation']] %>%
+    as_tibble() %>%
+    mutate(sample = colnames(v$E),
+           zscore = abs((PC1 - mean(PC1))/sd(PC1))) %>%
+    inner_join(as_tibble(v$targets, rownames = "sample"))
+  
+  outliers <- pca_res %>% filter(zscore >= zscore_cutoff) %>% pull(sample)
+  if (length(outliers > 0)){
+    object <- object[,colnames(object) %nin% outliers] 
+  }
+  return(list(count_object = object, pca = pca_res, removed = outliers))
+}
+
+
+#' @rdname remove_outliers
+#' @method remove_outliers DESeqDataSet
+#' @importFrom irlba prcomp_irlba
+#' @importFrom DESeq2 vst estimateSizeFactors
+#' @importFrom SummarizedExperiment assay
+#' @importFrom tibble as_tibble
+#' @importFrom dplyr mutate inner_join filter pull
+#' @return DESeqDataSet
+remove_outliers.DESeqDataSet <- function(object, zscore_cutoff){
+  object  <- estimateSizeFactors(object,
                               locfun = shorth,
                               type = "poscounts")
-  vsd <- assay(vst(dds))
+  vsd <- assay(vst(object))
   pca_res = prcomp_irlba(vsd)[['rotation']] %>%
     as_tibble() %>%
     mutate(sample = colnames(vsd),
            zscore = abs((PC1 - mean(PC1))/sd(PC1))) %>%
-    inner_join(as_tibble(colData(dds), rownames = "sample"))
+    inner_join(as_tibble(colData(object), rownames = "sample"))
   
   outliers <- pca_res %>% filter(zscore >= zscore_cutoff) %>% pull(sample)
   if (length(outliers > 0)){
-    dds <- dds[,colnames(dds) %nin% outliers] 
+    object <- object[,colnames(object) %nin% outliers] 
   }
-  return(list(dds = dds, pca = pca_res, removed = outliers))
+  return(list(count_object = object, pca = pca_res, removed = outliers))
 }

@@ -25,7 +25,12 @@ knitr::opts_chunk$set(echo = FALSE)
 loadd(annotation_info,
   annotated_module_scores,
   annotated_modules,
-  dds_with_scores,
+  sle_module_scores,
+  ldg_module_scores,
+  dge_qc,
+  fit,
+  qlf,
+  v,
   group_pal,
   ifn_scores,
   inflammation_scores,
@@ -35,7 +40,6 @@ loadd(annotation_info,
   ldg_scores,
   md,
   md_cat_data,
-  md_dupes,
   md_num_data,
   module_ISGs,
   module_scores,
@@ -58,7 +62,7 @@ loadd(annotation_info,
   umap_plot,
   umap_results,
   viral_transcripts,
-  vsd_exprs)
+  v)
 ```
 
 # Import of all SLE and control RNAseq data
@@ -137,7 +141,7 @@ if (!all(md$sample_name %in% names(tx_files))){
 
 ## Sample QC filtering
 
-Samples with a PC1 zscore > 3 (those that fall outside the red lines below) are dropped from analysis.
+Samples with a PC1 zscore > 2 (those that fall outside the green lines below) were dropped from analysis.
 ```{r, fig.width=6, fig.height=6}
 pca_qc %>% ggplot(aes(x = PC1,
                       y = PC2,
@@ -182,84 +186,95 @@ pheatmap(sampleDistMatrix,
 
 # Data quality
 
-##
+## Mean-difference plot
 ```{r}
-plotMA(res, ylim = c(-2,2))
+plotMD(qlf)
 ```
 
 ## Dispersion estimates
 ```{r}
-plotDispEsts(dds_with_scores)
+plotBCV(dge_qc)
 ```
+
+## Quasi-likelihood dispersion
+
+```{r}
+plotQLDisp(fit)
+```
+
+## Mean-variance relationship plot
+
+```{r}
+plotMeanVar(dge_qc, show.tagwise.vars=TRUE)
+```
+
 
 # Differential Gene Expression {.tabset}
 
 ```{r}
 print("Log fold change results:")
-summary(res)
+results <- res %>% mutate(upreg = logFC > 0, downreg = logFC < 0) %>% filter(FDR < 0.05) %>% count(upreg, downreg)
+
+n_total <- res %>% filter(logCPM > 0) %>% nrow
+n_upreg <- results %>% filter(upreg == TRUE, downreg == FALSE) %>% pull(n)
+n_downreg <- results %>% filter(upreg == FALSE, downreg == TRUE) %>% pull(n)
+
+print(str_glue("Out of {n_total} genes with > 0 counts:"))
+print(str_glue("logFC > 0 (upregulated)   : {n_upreg}, {round((n_upreg/n_total)*100, 2)}%"))
+print(str_glue("logFC < 0 (downregulated) : {n_downreg}, {round((n_downreg/n_total)*100, 2)}%"))
 ```
 
-### 25 genes with largest negative log-fold change in SLE
+## 25 genes with largest negative log-fold change in SLE
 ```{r}
 down_table %>%
-  dplyr::select(-baseMean) %>%
-  dplyr::filter(log2FoldChange > 0) %>%
-  arrange(desc(log2FoldChange)) %>%
+  dplyr::select(-F) %>%
+  dplyr::filter(logFC > 0) %>%
+  arrange(desc(logFC)) %>%
   mutate(
     gene = cell_spec(gene,
                      bold = TRUE),
-    padj = cell_spec(padj,
+    FDR = cell_spec(FDR,
                      color = "white",
-                     bold = TRUE,
-                     background = spec_color(padj)),
-    log2FoldChange = color_bar("tomato")(log2FoldChange)) %>%
+                     bold = ifelse(FDR < 0.05, T, F),
+                     background = spec_color(FDR)),
+    logFC = color_bar("tomato")(logFC)) %>%
   ungroup() %>%
-  rename(pvalue = paste0("pvalue", footnote_marker_symbol(1)),
-         stat = paste0("stat", footnote_marker_symbol(2)),
-         padj = paste0("padj", footnote_marker_symbol(3)),
-         lfcSE = "lfc standard error") %>%
   kable(escape = FALSE) %>%
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = TRUE,
     fixed_thead = TRUE) %>%
-  footnote(symbol = c("Wald test p-values", "Wald statistic", "Benjamini–Hochberg adjusted value")) %>%
   column_spec(2, color = "black")
 ```
 
 ## 25 genes with largest positive log-fold change in SLE
 ```{r}
 up_table %>%
-  select(-baseMean) %>%
-  filter(log2FoldChange > 0) %>%
-  arrange(desc(log2FoldChange)) %>%
+  select(-F) %>%
+  filter(logFC > 0) %>%
+  arrange(desc(logFC)) %>%
   mutate(
     gene = cell_spec(gene,
                      bold = TRUE),
-    padj = cell_spec(padj,
+    FDR = cell_spec(FDR,
                      color = "white",
-                     bold = ifelse(pvalue < 0.05, T, F),
-                     background = spec_color(padj)),
-    log2FoldChange = color_bar("lightgreen")(log2FoldChange)) %>%
+                     bold = ifelse(FDR < 0.05, T, F),
+                     background = spec_color(FDR)),
+    logFC = color_bar("lightgreen")(logFC)) %>%
   ungroup() %>%
-  rename(pvalue = paste0("pvalue", footnote_marker_symbol(1)),
-         stat = paste0("stat", footnote_marker_symbol(2)),
-         padj = paste0("padj", footnote_marker_symbol(3)),
-         lfcSE = "lfc standard error") %>%
   kable(escape = FALSE) %>%
   kable_styling(
     bootstrap_options = c("striped", "hover", "condensed", "responsive"),
     full_width = TRUE,
     fixed_thead = TRUE) %>%
-  footnote(symbol = c("Wald test p-values", "Wald statistic", "Benjamini–Hochberg adjusted value")) %>%
   column_spec(2, color = "black")
 ```
 
-### Expression of top DE genes:
+## Expression of top DE genes:
 ```{r, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
-t(vsd_exprs)[,unique(c(top_up, top_down))] %>% 
+t(v$E)[,unique(c(top_up, top_down))] %>% 
     pheatmap(
       scale = 'column',
       fontsize_row = 6, 
@@ -274,11 +289,11 @@ t(vsd_exprs)[,unique(c(top_up, top_down))] %>%
       )
 ```
 
-### Expression of selected interferon-stimulated genes:
+## Expression of selected interferon-stimulated genes:
 ```{r, fig.width=10, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
-t(vsd_exprs)[,ISGs] %>%
+t(v$E)[,ISGs] %>%
     pheatmap(
       scale = 'column',
       fontsize_row = 6,
@@ -292,11 +307,11 @@ t(vsd_exprs)[,ISGs] %>%
       border_color = NA)
 ```
 
-### Expression of individual genes in the M1.2, M3.4, and M5.12 gene modules
+## Expression of individual genes in the M1.2, M3.4, and M5.12 gene modules
 ```{r fig.height=9, fig.width=12}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
-vsd_exprs %>%
+v$E %>%
   as_tibble(rownames = "gene") %>%
   filter(gene %in% rownames(module_ISGs)) %>%
   filter(gene != "MT1A") %>%
@@ -513,7 +528,9 @@ pheatmap(
 ```{r fig.height=9, fig.width=11}
 range_bound = 3
 zscore_range <- c(-range_bound:range_bound)
-pheatmap(module_scores,
+column_to_rownames(.data = module_scores,
+                   var = "sample") %>%
+  pheatmap(
          scale = 'column',
          fontsize_row = 6, 
          fontsize_col = 6, 
@@ -583,7 +600,8 @@ sex_specific_genes <- tibble(chr = c(rep("Y",16), rep("X",2)),
 
 range_bound = 5
 zscore_range <- c(-range_bound:range_bound)
-t(vsd_exprs)[,c(sex_specific_genes[['symbol']])] %>%
+t(v$E)[,intersect(rownames(v$E),
+                  sex_specific_genes[['symbol']])] %>%
   pheatmap(
     scale='column',
     fontsize_row=6,
@@ -601,30 +619,23 @@ t(vsd_exprs)[,c(sex_specific_genes[['symbol']])] %>%
 These appear to be correct.
 
 ```{r}
-vsd_exprs %>% 
+v$E %>% 
+  fwrite(row.names = TRUE,
+         file = "filtered_voom_transformed_expression.csv")
+dge_qc$samples %>%
+  fwrite(row.names = TRUE,
+         file = "filtered_metadata.csv")
+cpm(dge_qc, log = TRUE) %>%
   as.data.frame() %>%
-  data.table::fwrite(row.names = TRUE,
-                     file = "filtered_normalized_stabilized_expression.csv")
-colData(dds_with_scores) %>%
-  as.data.frame() %>%
-  data.table::fwrite(row.names = TRUE,
-                     file = "filtered_metadata.csv")
-counts(dds_with_scores) %>%
-  as.data.frame() %>%
-  data.table::fwrite(row.names = TRUE,
-                     file = "filtered_transcript_counts.csv")
+  fwrite(row.names = TRUE,
+         file = "filtered_transcript_log_counts_per_million.csv")
 res %>%
-  as.data.frame() %>%
-  data.table::fwrite(row.names = TRUE,
-                     file = "log_fold_changes.csv")
+  fwrite(row.names = TRUE,
+         file = "log_fold_changes.csv")
 
-colData(dds_with_scores) %>%
-  as_tibble(rownames="sample") %>%
-  select(sample, 
-         one_of(module_tbl$module)) %>%
-  as.data.frame() %>%
-  data.table::fwrite(row.names = TRUE,
-                     file = "module_scores.csv")
+module_scores %>%
+  fwrite(row.names = TRUE,
+         file = "module_scores.csv")
 ```
 
 ```{r}

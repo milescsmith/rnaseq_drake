@@ -26,5 +26,8 @@ librarian::shelf(
   tximport,
   utils,
   uwot,
-  viridis
+  viridis,
+  limma,
+  edgeR,
+  data.table
 )

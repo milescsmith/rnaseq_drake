@@ -7,8 +7,8 @@
 # If you use supporting scripts like the ones below,
 # you will need to supply them yourself. Examples:
 # https://github.com/wlandau/drake-examples/tree/master/main/R
-source("R/packages.R")
-source("R/functions.R")
+source("R/packages.R")  # Load your packages, e.g. library(drake).
+source("R/functions.R") # Define your custom code as a bunch of functions.
 
 ### Setup bucket access
 flyio_set_datasource("gcs")
@@ -27,11 +27,11 @@ import_rda(file="references/kegerreis_ldg_modules.RData",
            data_source = "gcs")
 
 ### Setup project variables
-projects_to_include = c("Xencor")
-projects_to_exclude = c("none")
+projects_to_include = c("ABC")
+projects_to_exclude = c("Xencor")
 disease_classes_to_include = c("Control", "SLE")
 disease_classes_to_exclude = NULL
-study_design = ~initial_concentration_ng_ul + run_id + disease_class
+study_design = ~ initial_concentration_ng_ul + run_id + disease_class
 comparison_grouping_variable = "disease_class"
 control_group = "Control"
 experimental_group = "SLE"
@@ -39,19 +39,20 @@ initial_concentration_threshold = 1.5
 pc1_zscore_threshold = 2
 
 ### Setup file locations
-seq_file_directory = "/home/milo/datasets/novaseq"
+seq_file_directory = "/home/milo/charon/datasets/novaseq"
 metadata_file = "datasets/rnaseq/novaseq/NovaSeq_Sample_List.xlsx"
 
-source("R/plan.R")      # Create your drake plan.
+source("R/plan.R")
+# config <- drake_config(plan)
+# vis_drake_graph(config)
 
-BPPARAM = BiocParallel::MulticoreParam(workers=parallel::detectCores())
+BPPARAM = SnowParam(workers=parallel::detectCores(), type = "SOCK")
 BiocParallel::register(BPPARAM)
-
-drake_config(plan = plan,
-     verbose = 2,
-     parallelism = "future",
-     jobs = 8,
-     lock_envir = TRUE)
 
 # _drake.R must end with a call to drake_config().
 # The arguments to drake_config() are basically the same as those to make().
+drake_config(plan,
+             verbose = 2,
+             parallelism = "future",
+             jobs = parallel::detectCores(),
+             lock_envir = TRUE)

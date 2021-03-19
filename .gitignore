@@ -11,3 +11,7 @@ results/*.csv
 results/*.RData
 *._*
 .drake/
+**/*.md
+**/*.pd
+**/*.log
+*.csv

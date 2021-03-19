@@ -13,7 +13,7 @@ study_metadata =
     -study_group
   ) %>%
   rename(
-    sample_name = novaseq_sample_id,
+    sample_name = novaseq_exs_id,
     ethnicity = race_code,
     age = age_at_enroll
   ) %>%
@@ -25,9 +25,8 @@ study_metadata =
   mutate(
     disease_class =
       case_when(
-        project_group == "PCV Control" ~ "control",
-        project_group == "PCV Case" ~ "infected",
-        project_group == "OSCTR Case" ~ "infected",
+        str_detect(string = project_group, pattern = "[Cc]ontrol") ~ "control",
+        str_detect(string = project_group, pattern = "[Cc]ase") ~ "infected",
         TRUE ~ "unknown"
         ),
     sample_name =
@@ -35,11 +34,6 @@ study_metadata =
         string = sample_name,
         case = "all_caps"
         ),
-    project_group =
-      janitor::make_clean_names(
-        string = sample_name,
-        case = "all_caps"
-      ),
     across(
       .cols =
         c(
@@ -51,10 +45,11 @@ study_metadata =
           k_smith_severity
           ),
       .fns = as_factor
-      )
+      ),
+    age = as.numeric(age)
     ) %>%
   distinct() %>%
-  mutate(run_id = "S4_011_1")
+  mutate(run_id = factor("S4_011_1"))
 
 non_project_controls =
   read_excel(
@@ -76,14 +71,16 @@ non_project_controls =
     ethnicity = race_code,
     visit_ref,
     subject_ref,
-    age
+    age,
+    run_id
     ) %>%
   mutate(
     across(
       .cols =
         c(
           sex,
-          ethnicity
+          ethnicity,
+          run_id
         ),
       .fns = as_factor
       ),
@@ -139,6 +136,7 @@ tx_files =
 final_md = filter(
   .data = md,
   sample_name %in% names(tx_files),
+  sample_name %nin% samples_to_manually_remove,
   str_detect(
     string = sample_name,
     pattern = "_2$",
@@ -151,7 +149,7 @@ final_md = filter(
   column_to_rownames('sample_name')
 
 #Inspect the metadata:
-md_cat_data = inspect_cat(final_md)
+#md_cat_data = inspect_cat(final_md)
 
 md_num_data = inspect_num(final_md)
 

@@ -17,6 +17,11 @@ output:
     toc: TRUE
     toc_depth: 3
     toc_float: TRUE
+  pdf_document:
+    highlight: "pygments"
+    toc: TRUE
+    toc_depth: 3
+always_allow_html: true
 ---
 
 ```{css, echo=FALSE}
@@ -35,8 +40,14 @@ output:
 ```
 
 ```{r setup, include=FALSE}
+#source("/home/rstudio/oldworkspace/analysis/rnaseq/covid/covid_pcv/_drake.R")
+source("/home/rstudio/oldworkspace/analysis/rnaseq/covid/covid_pcv/code/packages.R", local = knitr::knit_global())
+source("/home/rstudio/oldworkspace/analysis/rnaseq/covid/covid_pcv/code/functions.R", local = knitr::knit_global())
+source("/home/rstudio/oldworkspace/analysis/rnaseq/covid/covid_pcv/code/extant_modules.R", local = knitr::knit_global())
+
+
 options(width = 1200)
-knitr::opts_chunk$set(echo = FALSE, root.dir = here())
+knitr::opts_chunk$set(echo = FALSE, root.dir = here(), warning = FALSE, message = FALSE)
 theme_set(theme_pubr())
 ```
 
@@ -44,154 +55,131 @@ theme_set(theme_pubr())
 loadd(dds_with_scores, res)
 ```
 
+\newpage
+
+# Numbers of controls and cases
+
 ```{r disease_class_table}
+set_flextable_defaults(font.size = 9)
+
 md <- colData(dds_with_scores) %>% as_tibble(rownames = "sample_name")
 md %>%
   tabyl(disease_class) %>%
-  rename(`Disease classification` = disease_class,
-         Number = n,
-         Percent = percent) %>%
-  qflextable() %>%
-  set_formatter(
-    Percent = function(x) sprintf("%.01f", x*100)
-  )
+  adorn_pct_formatting(digits = 2) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = FALSE) %>%
+  column_spec(1, bold = TRUE, border_right = TRUE, width = "10em") %>%
+  column_spec(2, border_right = TRUE, width = "10em") %>%
+  column_spec(3, border_right = FALSE, width = "10em")
+
 ```
 
+\newpage
+
 # Differential Gene Expression {.tabset .tabset-fade .tabset-pills}
+
 ```{r DE_table}
 res %>% 
   map(alt_summary) %>%
   enframe() %>%
   unnest(cols = c(value)) %>%
-  mutate(
-    `up %` = round(100*(as.integer(up)/as.integer(total)),
-                   digits = 2),
-    `down %` = round(100*(as.integer(down)/as.integer(total)),
-                     digits = 2),
-    `low counts %` = round(100*(as.integer(lowcounts)/as.integer(total)),
-                           digits = 2),
-    name = str_replace_all(string = name, 
-                           pattern = "_",
-                           replacement = " ")
-    ) %>%
-  select(
-    Comparison = name,
-    `# Up\nregulated` = up,
-    `% Up\nregulated` = `up %`,
-    `# Down\nregulated` = down,
-    `% Down\nregulated` = `down %`,
-    `Mean count\ncutoff` = ft,
-    `# Low\ncounts` = lowcounts,
-    `% Low\ncounts` = `low counts %`
-    ) %>%
-  qflextable() %>%
-  set_formatter(
-    `% Up\nregulated` = function(x) sprintf("%.02f", x),
-    `% Down\nregulated` = function(x) sprintf("%.02f", x),
-    `% Low\ncounts` = function(x) sprintf("%.02f", x)
-  ) %>%
-  bold(part = "header") %>%
-  # align(align = "center", part = "header", j = 2:8) %>%
-  align(align = "left", part = "body", j = 1)
+  mutate(`up %` = round(100*(as.integer(up)/as.integer(total)),
+                        digits = 2) %>% paste("%"),
+         `down %` = round(100*(as.integer(down)/as.integer(total)),
+                        digits = 2) %>% paste("%"),
+         `low counts %` = round(100*(as.integer(lowcounts)/as.integer(total)),
+                                digits = 2) %>% paste("%"),
+         name = str_replace_all(string = name, 
+                                pattern = "_",
+                                replacement = " ")) %>%
+  select(comparison = name, up, `up %`, down, `down %`, `mean count cutoff` = ft, `low counts` = lowcounts, `low counts %`) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  footnote(paste(alt_summary(res[[1]])$total, "with nonzero total read count", "\nOutliers: ", alt_summary(res[[1]])$outlier))
+
 ```
 
 ## 25 genes with largest negative log-fold change in experimental group {.tabset .tabset-fade .tabset-pills}
+
 ```{r 25_top_down_DE, echo = FALSE}
 loadd(down_tables)
 ```
 
-```{r 25_top_down_DE_tbl, echo = FALSE}
+```{r 25_top_down_DE_tbl, echo = FALSE, results='asis'}
 for (i in seq_along(down_tables)){
-  dtbl <-down_tables[[i]] %>%
+  down_tables[[i]] %>%
     dplyr::select(-baseMean) %>%
     dplyr::filter(log2FoldChange > 0) %>%
     arrange(desc(log2FoldChange)) %>%
+    mutate(
+      gene = cell_spec(gene,
+                       bold = TRUE),
+      padj = cell_spec(padj,
+                       color = "white",
+                       bold = TRUE,
+                       background = spec_color(padj)),
+      log2FoldChange = color_bar("tomato")(log2FoldChange)) %>%
     ungroup() %>%
-    rename(
-      Gene = gene,
-      `Log-fold change\nstandard error` = lfcSE,
-      `P-value` = pvalue,
-      `Adjusted\nP-value` = padj) %>%
-    qflextable() %>%
-      flextable::footnote(
-        i = 1,
-        j = 4:5,
-        part = "header",
-        value = 
-          as_paragraph(
-            c("Wald test p-values",
-              "Benjamini–Hochberg adjusted value"
-              )
-            ),
-        ref_symbols = c("*","†")
-        ) %>%
-    bold(part = "header") %>%
-    set_formatter(
-      log2FoldChange = function(x) sprintf("%.02g", x)
-    ) %>%
-    flextable::compose(
-      i = 1,
-      j = 2,
-      part = "header",
-      value = as_paragraph(
-        "Log",
-        as_sub("2"),
-        "-fold change"
-        )
-      ) %>%
-    add_header_lines(values = names(down_tables)[[i]])
-
-  cat(knit_print(dtbl))
+    rename(!!paste0("pvalue", footnote_marker_symbol(1)) := pvalue,
+           #!!paste0("stat", footnote_marker_symbol(2)) := stat,
+           !!paste0("padj", footnote_marker_symbol(2)) := padj,
+           "lfc standard error" = lfcSE) %>%
+    kable(escape = FALSE,
+          caption = paste0("<b>", names(down_tables)[[i]],
+          ": downregulated in ",
+          str_split(string = names(down_tables)[[i]],
+                    pattern = "_vs_",
+                    simplify = TRUE)[[1]], "</b>")) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+      full_width = TRUE,
+      fixed_thead = TRUE) %>%
+    #footnote(symbol = c("Wald test p-values", "Wald statistic", "Benjamini–Hochberg adjusted value")) %>%
+    footnote(symbol = c("Wald test p-values", "Benjamini–Hochberg adjusted value")) %>%
+    column_spec(2, color = "black") %>%
+    print()
 }
 ```
 
 ## 25 genes with largest positive log-fold change in experimental group {.tabset .tabset-fade .tabset-pills}
+
 ```{r 25_top_up_DE, echo = FALSE}
 loadd(up_tables)
 ```
 
-```{r 25_top_up_DE_tbl, echo = FALSE}
+```{r 25_top_up_DE_tbl, echo = FALSE, results='asis'}
 for (j in seq_along(up_tables)){
-  utbl <- up_tables[[j]] %>%
+  up_tables[[j]] %>%
     select(-baseMean) %>%
     filter(log2FoldChange > 0) %>%
     arrange(desc(log2FoldChange)) %>%
+    mutate(
+      gene = cell_spec(gene,
+                       bold = TRUE),
+      padj = cell_spec(padj,
+                       color = "white",
+                       bold = ifelse(pvalue < 0.05, T, F),
+                       background = spec_color(padj)),
+      log2FoldChange = color_bar("lightgreen")(log2FoldChange)) %>%
     ungroup() %>%
-    rename(
-      Gene = gene,
-      `Log-fold change\nstandard error` = lfcSE,
-      `P-value` = pvalue,
-      `Adjusted\nP-value` = padj) %>%
-    qflextable() %>%
-      flextable::footnote(
-        i = 1,
-        j = 4:5,
-        part = "header",
-        value = 
-          as_paragraph(
-            c("Wald test p-values",
-              "Benjamini–Hochberg adjusted value"
-              )
-            ),
-        ref_symbols = c("*","†")
-        ) %>%
-    bold(part = "header") %>%
-    set_formatter(
-      log2FoldChange = function(x) sprintf("%.02g", x)
-    ) %>%
-    flextable::compose(
-      i = 1,
-      j = 2,
-      part = "header",
-      value = as_paragraph(
-        "Log",
-        as_sub("2"),
-        "-fold change"
-        )
-      ) %>%
-    add_header_lines(values = names(up_tables)[[j]])
-
-  cat(knit_print(utbl))
+    rename(!!paste0("pvalue", footnote_marker_symbol(1)) := pvalue,
+           #!!paste0("stat", footnote_marker_symbol(2)) := stat,
+           !!paste0("padj", footnote_marker_symbol(2)) := padj,
+           "lfc standard error" = lfcSE) %>%
+    kable(escape = FALSE,
+          caption = paste0("<b>", names(up_tables)[[i]],
+          ": upregulated in ",
+          str_split(string = names(up_tables)[[i]],
+                    pattern = "_vs_",
+                    simplify = TRUE)[[1]], "</b>")) %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+      full_width = TRUE,
+      fixed_thead = TRUE) %>%
+    #footnote(symbol = c("Wald test p-values", "Wald statistic", "Benjamini–Hochberg adjusted value")) %>%
+    footnote(symbol = c("Wald test p-values", "Benjamini–Hochberg adjusted value")) %>%
+    column_spec(2, color = "black") %>%
+    print()
   }
 ```
 
@@ -202,6 +190,7 @@ loadd(deg_class, final_md, vsd_exprs, annotation_info, group_pal, up_tables, dow
 ```
 
 ### Sorted by disease classification
+
 ```{r top_class_DE_disease_sort, fig.width=12, fig.height=9}
 
 deg_class_tbl <-
@@ -272,6 +261,7 @@ for (i in comparison_names){
 ```
 
 ### Sorted by cluster
+
 ```{r top_class_DE_cluster_sort, fig.width=12, fig.height=9}
 
 deg_class_tbl <- as_tibble(deg_class, rownames = "gene")
@@ -334,6 +324,7 @@ for (i in comparison_names){
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r top_class_DE_hierarchical_sort, fig.width=12, fig.height=9}
 deg_class_tbl <- as_tibble(deg_class, rownames = "gene")
 comparisons = unique(deg_class_tbl$comparison)
@@ -377,6 +368,7 @@ for (i in comparison_names){
 ```
 
 ## Expression of all top DE genes {.tabset .tabset-fade .tabset-pills}
+
 ```{r}
 loadd(deg_means)
 ```
@@ -420,6 +412,7 @@ zscore_range <- c(-range_bound:range_bound)
 ```
 
 ### Sorted by disease classification
+
 ```{r Expression_of_all_top_DE_genes_disease_sort, fig.width=12, fig.height=9}
 t(vsd_exprs)[sample_disease_order,colnames(deg_means)] %>% 
     pheatmap(
@@ -439,6 +432,7 @@ t(vsd_exprs)[sample_disease_order,colnames(deg_means)] %>%
 ```
 
 ### Sorted by cluster
+
 ```{r Expression_of_all_top_DE_genes_cluster_sort, fig.width=12, fig.height=9}
 sample_cluster_order <-
   annotation_info %>%
@@ -466,6 +460,7 @@ t(vsd_exprs)[sample_cluster_order,colnames(deg_means)] %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r Expression_of_all_top_DE_genes_auto_sort, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -487,6 +482,7 @@ t(vsd_exprs)[,colnames(deg_means)] %>%
 ```
 
 ## Volcano plot of gene expression
+
 ```{r Volcano_plot_of_gene_expression, fig.height=6, fig.width=9}
 
 inverse_format <- function() {
@@ -591,11 +587,13 @@ for(k in seq_along(res)){
 ```
 
 ## Expression of selected interferon-stimulated genes {.tabset .tabset-fade .tabset-pills}
+
 ```{r Expression_of_selected_interferon-stimulated genes, fig.height=6, fig.width=9}
 loadd(ISGs)
 ```
 
 ### Sorted by disease classification
+
 ```{r Expression_of_ISGs_disease_sort, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -614,8 +612,8 @@ t(vsd_exprs)[sample_disease_order,ISGs] %>%
       border_color = NA)
 ```
 
-
 ### Sorted by cluster
+
 ```{r Expression_of_ISGs_cluster_sort, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -636,6 +634,7 @@ t(vsd_exprs)[sample_cluster_order,ISGs] %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r Expression_of_ISGs_auto_sort, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -655,11 +654,13 @@ t(vsd_exprs)[,ISGs] %>%
 ```
 
 ## Expression of individual genes in the M1.2, M3.4, and M5.12 gene modules {.tabset .tabset-fade .tabset-pills}
+
 ```{r Expression_of_individual_genes_in_the_M1.2, M3.4, and M5.12 gene modules, fig.height=6, fig.width=9}
 loadd(module_ISGs)
 ```
 
 ### Sorted by disease classification
+
 ```{r module_ISGs_disease_sort, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -681,6 +682,7 @@ t(vsd_exprs)[sample_disease_order,(arrange(as_tibble(module_ISGs, rownames = "ge
 ```
 
 ### Sorted by cluster
+
 ```{r module_ISGs_cluster_sort, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -702,6 +704,7 @@ t(vsd_exprs)[sample_cluster_order,(arrange(as_tibble(module_ISGs, rownames = "ge
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r module_ISGs_auto_sort, fig.width=12, fig.height=9}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -722,11 +725,11 @@ t(vsd_exprs)[sample_disease_order,(arrange(as_tibble(module_ISGs, rownames = "ge
     )
 ```
 
+\newpage
+
 # Sample Clustering
 
-The eigenvales for the annotated Banchereau modules were used to calculate an
-adjacentcy matrix, which was in turn used to calculate the gap statistic to
-determine the optimal *k*-clusters.
+The eigenvales for the annotated Banchereau modules were used to calculate an adjacentcy matrix, which was in turn used to calculate the gap statistic to determine the optimal *k*-clusters.
 
 ```{r Sample_Clustering_chart}
 annotation_info %>%
@@ -757,9 +760,11 @@ annotation_info %>%
   )) +
   geom_col() +
   labs(y = "Proportion of disease class in cluster") +
-  scale_fill_brewer(palette = "Set1") +
+  scale_fill_manual(values = group_pal$cluster) +
   theme_pubr()
 ```
+
+\newpage
 
 # Clustering and variation of samples in reduced dimensional space {.tabset .tabset-fade .tabset-pills}
 
@@ -769,8 +774,8 @@ annotation_info %>%
 loadd(pca_results)
 ```
 
-
 ### PCA by disease classification
+
 ```{r PCA_by_disease_classification, fig.width=12, fig.height=6}
 p1 <-
   ggplot(
@@ -968,33 +973,8 @@ plot_grid(
 )
 ```
 
-### PCA by initial sample concentration
-```{r, fig.width=8, fig.height=6}
-ggplot(
-  data = pca_results,
-  mapping = aes(
-    x = PC1,
-    y = PC2,
-    fill = initial_concentration_ng_ul
-  )
-) +
-  geom_point(
-    shape = 21,
-    colour = "black",
-    size = 2.5,
-    stroke = 0.5,
-    alpha = 0.6
-  ) +
-  scale_fill_gradient2(
-    low = "blue",
-    mid = "grey90",
-    high = "red",
-    midpoint = 10
-    ) +
-  theme_pubr()
-```
-
 ### PCA by K-means cluster
+
 ```{r PCA_by_K-means cluster, fig.width=7, fig.height=6}
 pca_results %>%
   ggplot(
@@ -1014,29 +994,54 @@ pca_results %>%
 ```
 
 <!-- ### 3D PCA colored by K-means cluster -->
+
 <!-- ```{r 3D_PCA_colored_by_K-means cluster} -->
+
 <!-- pca_results %>% -->
+
 <!--   plot_ly( -->
+
 <!--     x = ~PC1, -->
+
 <!--     y = ~PC2, -->
+
 <!--     z = ~PC3, -->
+
 <!--     colors = group_pal$cluster -->
+
 <!--   ) %>% -->
+
 <!--   add_markers( -->
+
 <!--     text = str_glue("Sample: {pca_results$sample_name}<br>Classification: {pca_results$disease_class}<br>Ethnicity {pca_results$ethnicity}<br>Cluster: {pca_results$cluster}<br>Sex: {pca_results$sex}<br>Plate: {pca_results$run_id}"), -->
+
 <!--     color = ~cluster, -->
+
 <!--     size = 2.5, -->
+
 <!--     alpha = 0.9, -->
+
 <!--     hovertemplate = "%{text}", -->
+
 <!--     marker = list( -->
+
 <!--       size = 3, -->
+
 <!--       line = list( -->
+
 <!--         color = 'rgba(0, 0, 0, .8)', -->
+
 <!--         width = 1.5 -->
+
 <!--       ) -->
+
 <!--     ) -->
+
 <!--   ) -->
+
 <!-- ``` -->
+
+\newpage
 
 ## UMAP {.tabset .tabset-fade .tabset-pills}
 
@@ -1044,8 +1049,8 @@ pca_results %>%
 loadd(umap_results)
 ```
 
-
 ### UMAP by disease classification
+
 ```{r UMAP_by_disease_classification, fig.width=12, fig.height=7}
 p1 <-
   ggplot(
@@ -1109,8 +1114,8 @@ plot_grid(
 )
 ```
 
-
 ### UMAP by plate
+
 ```{r UMAP_by_plate, fig.width=12, fig.height=7}
 p1 <- ggplot(
   data = umap_results,
@@ -1240,6 +1245,7 @@ plot_grid(
 ```
 
 ### UMAP by K-means cluster
+
 ```{r UMAP_by_K-means cluster, fig.height=6, fig.width=7}
 umap_results %>%
   ggplot(
@@ -1259,38 +1265,65 @@ umap_results %>%
 ```
 
 <!-- ### UMAP in 3D by K-means cluster -->
+
 <!-- ```{r UMAP_in_3D_by_K-means cluster} -->
+
 <!-- umap_results %>% -->
+
 <!--   plot_ly( -->
+
 <!--     x = ~umap_1, -->
+
 <!--     y = ~umap_2, -->
+
 <!--     z = ~umap_3, -->
+
 <!--     colors = group_pal$cluster -->
+
 <!--   ) %>% -->
+
 <!--   add_markers( -->
+
 <!--     text = str_glue("Sample: {umap_results$sample_name}<br>Classification: {umap_results$disease_class}<br>Ethnicity {umap_results$ethnicity}<br>Cluster: {umap_results$cluster}<br>Sex: {umap_results$sex}<br>Plate: {umap_results$run_id}"), -->
+
 <!--     color = ~cluster, -->
+
 <!--     size = 2.5, -->
+
 <!--     alpha = 0.9, -->
+
 <!--     hovertemplate = "%{text}", -->
+
 <!--     marker = list( -->
+
 <!--       size = 3, -->
+
 <!--       line = list( -->
+
 <!--         color = 'rgba(0, 0, 0, .8)', -->
+
 <!--         width = 1.5 -->
+
 <!--       ) -->
+
 <!--     ) -->
+
 <!--   ) -->
+
 <!-- ``` -->
+
+\newpage
 
 # Module scores {.tabset .tabset-fade .tabset-pills}
 
 ## SLE Interferon module scores {.tabset .tabset-fade .tabset-pills}
+
 ```{r SLE_Interferon_module_scores}
 loadd(module_scores_with_viral, ifn_modules)
 ```
 
 ### Sorted by disease classification
+
 ```{r SLE_Interferon_module_scores_disease_sort, fig.width=3, fig.height=6}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -1313,6 +1346,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by cluster
+
 ```{r SLE_Interferon_module_scores_cluster_sort, fig.width=3, fig.height=6}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -1335,6 +1369,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r SLE_Interferon_module_scores_auto_sort, fig.width=4, fig.height=6}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -1355,11 +1390,13 @@ module_scores_with_viral %>%
 ```
 
 ## SLE Inflammatory module scores {.tabset .tabset-fade .tabset-pills}
+
 ```{r SLE_Inflammatory_module_scores, fig.height=9, fig.width=6}
 loadd(inflame_modules)
 ```
 
 ### Sorted by disease classification
+
 ```{r SLE_Inflammatory_module_scores_disease_sort, fig.width=4, fig.height=6}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -1382,6 +1419,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by cluster
+
 ```{r SLE_Inflammatory_module_scores_cluster_sort, fig.width=4, fig.height=6}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -1404,6 +1442,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r SLE_Inflammatory_module_scores_auto_sort, fig.width=4.5, fig.height=6}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
@@ -1424,12 +1463,14 @@ module_scores_with_viral %>%
 ```
 
 ## Low-density granulocyte module scores {.tabset .tabset-fade .tabset-pills}
+
 ```{r Low-density granulocyte module scores}
 range_bound = 3
 zscore_range <- c(-range_bound:range_bound)
 ```
 
 ### Sorted by disease classification
+
 ```{r ldg_module_disease_sort, fig.width=3.25, fig.height=6}
 module_scores_with_viral %>%
     select(sample_name,
@@ -1451,6 +1492,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by cluster
+
 ```{r ldg_module_cluster_sort, fig.width=3.25, fig.height=6}
 module_scores_with_viral %>%
     select(sample_name,
@@ -1472,6 +1514,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r ldg_module_auto_sort, fig.width=4, fig.height=6}
 module_scores_with_viral %>%
     select(sample_name,
@@ -1491,10 +1534,10 @@ module_scores_with_viral %>%
 ```
 
 ## SLE Modules with an annotated associated pathway {.tabset .tabset-fade .tabset-pills}
+
 ```{r}
 loadd(annotated_modules, annotated_mod_list)
 ```
-
 
 ```{r SLE_Modules_with_an_annotated_associated_pathway, fig.height=9, fig.width=11}
 range_bound = 4
@@ -1554,6 +1597,7 @@ module_gaps <- c(1,4,7,14,20,25)
 ```
 
 ### Sorted by disease classification
+
 ```{r annotated_module_disease_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   arrange(disease_class) %>%
@@ -1598,6 +1642,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by cluster
+
 ```{r annotated_modulecluster_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   arrange(cluster) %>%
@@ -1642,6 +1687,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r annotated_module_auto_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   select(sample_name,
@@ -1666,6 +1712,7 @@ module_scores_with_viral %>%
 ```
 
 ## All SLE modules {.tabset .tabset-fade .tabset-pills}
+
 ```{r All_SLE_modules, fig.height=9, fig.width=11}
 loadd(module_annotation)
 range_bound = 3
@@ -1673,6 +1720,7 @@ zscore_range <- c(-range_bound:range_bound)
 ```
 
 ### Sorted by disease classification
+
 ```{r all_module_disease_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   select(
@@ -1704,6 +1752,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by cluster
+
 ```{r all_module_cluster_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   select(
@@ -1735,6 +1784,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r all_module_auto_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   select(
@@ -1758,6 +1808,7 @@ module_scores_with_viral %>%
 ```
 
 ## Expression of the annotated Banchereau modules {.tabset .tabset-fade .tabset-pills}
+
 ```{r}
 loadd(
   module_scores_with_viral,
@@ -1775,6 +1826,7 @@ number_of_pages <-
 ```
 
 ### By disease classification
+
 ```{r Banchereau_modules_by_disease, echo=FALSE, fig.height=8, fig.width=12, warning=FALSE}
 annotated_module_disease_class_graphs <-
   annotated_module_scores_pivot %>%
@@ -1792,7 +1844,7 @@ annotated_module_disease_class_graphs <-
   scale_fill_paletteer_d("ggsci::uniform_startrek") +
   stat_pvalue_manual(
     data = annotated_module_stats_by_disease,
-    label = "p.adj.signif",
+    label = "p",
     hide.ns = TRUE,
     bracket.size = 0.1,
     tip.length = 0.01,
@@ -1816,6 +1868,7 @@ for(i in seq(number_of_pages)){
 ```
 
 ### By cluster
+
 ```{r Banchereau_modules_by_cluster, echo=FALSE, fig.height=8, fig.width=12, warning=FALSE}
 number_of_modules <-
   ncol(annotated_module_scores) - 1
@@ -1839,7 +1892,7 @@ annotated_module_cluster_graphs <-
   scale_fill_paletteer_d("ggsci::uniform_startrek") +
   stat_pvalue_manual(
     data = annotated_module_stats_by_cluster,
-    label = "p.adj.signif",
+    label = "p",
     hide.ns = TRUE,
     bracket.size = 0.1,
     tip.length = 0.01,
@@ -1872,12 +1925,16 @@ for(i in seq(number_of_pages)){
 }
 ```
 
+\newpage
+
 # WGCNA
+
 ```{r include=FALSE}
 loadd(wgcna_modules)
 ```
 
 ## Expression similarity dendrogram
+
 ```{r WGCNA_Expression_similarity_dendrogram, echo=FALSE, fig.height=6, fig.width=10}
 plotDendroAndColors(dendro = wgcna_modules$dendrograms[[1]],
                     colors = wgcna_modules$colors[wgcna_modules$blockGenes[[1]]],
@@ -1890,6 +1947,7 @@ plotDendroAndColors(dendro = wgcna_modules$dendrograms[[1]],
 ```
 
 ## Expression of identified modules {.tabset .tabset-fade .tabset-pills}
+
 ```{r include=FALSE}
 loadd(
   module_scores_with_viral_by_cluster,
@@ -1907,7 +1965,8 @@ number_of_pages <-
   ceiling(number_of_modules/9)
 ```
 
-### By disease classification 
+### By disease classification
+
 ```{r wgcna_by_disease, echo=FALSE, fig.height=8, fig.width=12}
 module_disease_graphs <-
   module_scores_with_viral_by_disease %>%
@@ -1923,7 +1982,7 @@ module_disease_graphs <-
   scale_fill_paletteer_d("ggsci::uniform_startrek") +
   stat_pvalue_manual(
     data = module_scores_with_viral_by_disease_stats,
-    label = "p.adj.signif",
+    label = "p",
     hide.ns = TRUE,
     bracket.size = 0.1,
     tip.length = 0.01,
@@ -1949,6 +2008,7 @@ for(i in seq(number_of_pages)){
 ```
 
 ### By cluster
+
 ```{r wgcna_modules_by_cluster, echo=FALSE, fig.height=8, fig.width=12}
 number_of_modules <-
   module_scores_with_viral %>%
@@ -1972,7 +2032,7 @@ module_cluster_graphs <-
   scale_fill_paletteer_d("ggsci::uniform_startrek") +
   stat_pvalue_manual(
     data = module_scores_with_viral_by_cluster_stats,
-    label = "p.adj.signif",
+    label = "p",
     hide.ns = TRUE,
     bracket.size = 0.1,
     tip.length = 0.01,
@@ -1998,12 +2058,14 @@ for(i in seq(number_of_pages)){
 ```
 
 ## WGCNA eigenvalues {.tabset .tabset-fade .tabset-pills}
-```{r wgcna_eigenvalues, fig.height=9, fig.width=11}
+
+```{r wgcna_eigenvalues, echo=FALSE, include=FALSE}
 range_bound = 4
 zscore_range <- c(-range_bound:range_bound)
 ```
 
 ### Sorted by disease classification
+
 ```{r WGCNA_eigenvalues_disease_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   select(
@@ -2034,6 +2096,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by cluster
+
 ```{r WGCNA_eigenvalues_cluster_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   select(
@@ -2064,6 +2127,7 @@ module_scores_with_viral %>%
 ```
 
 ### Sorted by hierarchical clustering
+
 ```{r WGCNA_eigenvalues_auto_sort, fig.width=12, fig.height=9}
 module_scores_with_viral %>%
   select(
@@ -2086,41 +2150,54 @@ module_scores_with_viral %>%
     )
 ```
 
-## Gene ontology GSEA of WGCNA modules
-```{r wgcna_gsea, fig.height=11, fig.width=12}
-loadd(MEplotting)
+\newpage
 
-for(i in 1:ceiling(length(unique(MEplotting$module))/6)){
-    
-      plots <-
-        ggplot(data = MEplotting,
-               mapping = aes(
-                 y = GeneRatio,
-                 x = order,
-                 color = p.adjust)
-               ) +
-          geom_point(stat = "identity",
-                     size = 2) +
-          scale_x_continuous(breaks = MEplotting$order,
-                           labels = str_wrap(MEplotting$ID, width = 40),
-                           expand = c(0.1,0.1)) +
-          scale_color_gradient(low = "blue", high = "red") +
-          labs(color = "adjusted\np value") +
-          facet_wrap_paginate(~ module,
-                              ncol = 2,
-                              nrow = 3,
-                              scales = "free",
-                              page = i) +
-          theme(axis.text.y = element_text(size = 9),
-                axis.text.x = element_text(size = 9),
-                panel.background = element_rect(fill = "white", linetype = "solid"),
-                panel.border = element_rect(colour = "black", fill=NA, size=1),
-                panel.grid = element_line(color = "grey90"),
-                axis.title.y = element_blank()) +
-          coord_flip()
-      print(plots)
+## Gene ontology GSEA of WGCNA modules
+
+```{r wgcna_gsea_load, echo=FALSE, include=FALSE}
+loadd(MEplotting)
+```
+
+```{r wgcna_gsea, fig.height=11, fig.width=12, message=FALSE, warning=FALSE}
+plots <-
+  ggplot(data = MEplotting,
+         mapping = aes(
+           y = GeneRatio,
+           x = order,
+           color = p.adjust)
+         ) +
+    geom_point(stat = "identity",
+               size = 2) +
+    scale_x_continuous(breaks = MEplotting$order,
+                     labels = str_wrap(MEplotting$ID, width = 40),
+                     expand = c(0.1,0.1)) +
+    scale_color_gradient(low = "blue", high = "red") +
+    labs(color = "adjusted\np value") +
+    theme(axis.text.y = element_text(size = 9),
+          axis.text.x = element_text(size = 9),
+          panel.background = element_rect(fill = "white", linetype = "solid"),
+          panel.border = element_rect(colour = "black", fill=NA, size=1),
+          panel.grid = element_line(color = "grey90"),
+          axis.title.y = element_blank()) +
+    coord_flip()
+
+facet_pages <- n_pages(plots + facet_grid_paginate(vars(module),ncol = 2,nrow = 3,scales = "free",page = 1))
+
+for (i in seq(facet_pages-1)){
+ print(
+  plots +
+    facet_grid_paginate(
+      vars(module),
+      ncol = 2,
+      nrow = 3,
+      scales = "free",
+      page = i
+    )
+  ) 
 }
 ```
+
+\newpage
 
 ## Use of WGCNA modules in classifying clusters.
 
@@ -2147,6 +2224,8 @@ loadd(wgcna_cluster_rf_cv_varImp)
 wgcna_cluster_rf_cv_varImp
 ```
 
+\newpage
+
 ## Use of WGCNA modules in labeling disease class.
 
 The module eigengene scores were used to train a random forest model with repeated cross validation to predict cluster identity.
@@ -2170,6 +2249,8 @@ loadd(wgcna_disease_class_rf_cv_varImp)
 wgcna_disease_class_rf_cv_varImp
 ```
 
+\newpage
+
 ## Use of module modules in classifying clusters.
 
 The module eigengene scores were used to train a random forest model with repeated cross validation to predict cluster identity.
@@ -2192,6 +2273,8 @@ loadd(module_cluster_rf_cv_varImp)
 
 module_cluster_rf_cv_varImp
 ```
+
+\newpage
 
 ## Use of module modules in labeling disease class.
 

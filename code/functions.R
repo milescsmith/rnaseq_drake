@@ -126,26 +126,42 @@ plot_resolution_silhouette_coeff <- function(cluster_silhouette){
     theme_cowplot()
 }
 
-ident_clusters <- function(expr_mat,
-                           optimal_k_method = "Tibs2001SEmax",
-                           nstart = 25,
-                           K.max = 50,
-                           B = 100,
-                           d.power = 2){
+ident_clusters <- function(
+  expr_mat,
+  pcs = 100,
+  optimal_k_method = "Tibs2001SEmax",
+  nstart = 25,
+  K.max = 50,
+  B = 100,
+  d.power = 2
+  ){
 
-  module_rf <-
+  pca_rsv <-
+    pluck(
+      irlba(
+        A = expr_mat,
+        nv = pcs),
+      "v"
+    ) %>%
+    as.data.frame() %>%
+    set_rownames(colnames(expr_mat)) %>%
+    set_colnames(str_glue("PC{seq(pcs)}"))
+
+  rf <-
     randomForest(
-      x = expr_mat,
+      x = pca_rsv,
       y = NULL,
-      prox = T)
+      prox = T
+      )
 
   rf_distance_mat <-
-    dist(1 - module_rf$proximity) %>%
+    dist(1 - rf$proximity) %>%
     as.matrix()
 
   kmeans_gap_stat <-
     clusGap(
       x = rf_distance_mat,
+      spaceH0 = "original",
       FUNcluster = kmeans,
       nstart = nstart,
       K.max = K.max,
@@ -169,10 +185,10 @@ ident_clusters <- function(expr_mat,
       nstart = 25
     )
 
-  sample_clusters <-
-    enframe(x = k_clusters[["cluster"]],
-            name = "sample_name",
-            value = "cluster")
+  sample_clusters <- tibble(cluster = k_clusters[["cluster"]], sample_name = colnames(expr_mat))
+    # enframe(x = k_clusters[["cluster"]],
+    #         name = "sample_name",
+    #         value = "cluster")
 
   ret_values <-
     list(
@@ -184,6 +200,25 @@ ident_clusters <- function(expr_mat,
 
   return(ret_values)
 }
+
+# need this in the row-by-sample, column-by-gene format
+# is this stupid? yes.
+# do I know how to not trigger a C stack limit error when using reticulate? no.
+leiden_cluster <- function(exprs, res=1.0, nneighbors=30, column_name=NULL){
+  column_name <- column_name %||% str_glue("leiden_res_{res}")
+
+  fwrite(x = exprs, file="tmp.csv", sep = ",")
+  system(str_glue("clustering tmp.csv tmp.txt --resolution {res} --n_neighbors {nneighbors}"))
+  clusters <-
+    fread("tmp.txt") %>%
+    as_tibble() %>%
+    mutate(
+      sample_name = rownames(exprs),
+      V1 = as_factor(V1)
+      ) %>%
+    rename({{column_name}} := V1)
+}
+
 
 plot_dispersion_estimate <- function(object, CV = FALSE){
   px <- mcols(object)$baseMean
@@ -407,10 +442,10 @@ grouped_add_xy_positions <- function(stats_tbl,
   tbl_with_positions <- map_dfr(unique_groups, function(x){
     stats_subset <- stats_tbl %>% filter({{group_var}} == x) %>% add_x_position()
 
-    stats_subset <- if ("p.adj" %in% names(stats_subset)){
-      stats_subset %>% filter(p.adj <= cutoff)
+    if ("p.adj" %in% names(stats_subset)){
+      stats_subset <- stats_subset %>% filter(p.adj <= cutoff)
     } else {
-      stats_subset %>% filter(p <= cutoff)
+      stats_subset <- stats_subset %>% filter(p <= cutoff)
     }
 
     min_max_subset <- data_min_max %>% filter({{group_var}} == x)
@@ -421,6 +456,8 @@ grouped_add_xy_positions <- function(stats_tbl,
           by = min_max_subset[['step']],
           to = min_max_subset[['max']] + nrow(stats_subset)*min_max_subset[['step']])
       stats_subset[['y.position']] <- positions[2:length(positions)]
+    } else {
+      stats_subset[["y.position"]] <- min_max_subset[["max"]] + nrow(stats_subset)*min_max_subset[['step']]
     }
     stats_subset
   })
@@ -591,4 +628,52 @@ find_softPower <- function(sft){
   }
 
   powerEstimate
+}
+
+# need a dataframe with things to cluster in rows, observations in columns
+# if sample_name_column is NULL, grab sample names from the rownames
+leiden_umap_cluster <- function(
+  df,
+  res = 1.0,
+  n_neighbors = 30,
+  sample_name_column = NULL,
+  cluster_column_name = NULL
+  ){
+
+  if (is.null(sample_name_column)){
+    sample_names <- rownames(df)
+  } else {
+    samples_names <- df[[sample_name_column]]
+  }
+
+  cluster_column_name <- cluster_column_name %||% str_glue("leiden_res_{res}")
+
+  mcr <-
+    import(
+      module = "mcr",
+      delay_load = TRUE
+    )
+
+  pd <-
+    import(
+      module = "pandas",
+      delay_load = TRUE
+      )
+
+  cluster_list <-
+    mcr$clustering$label_clusters(
+      data_df = pd$DataFrame(df),
+      resolution = as.numeric(res),
+      n_neighbors = n_neighbors
+      )
+
+  cluster_list <-
+    as_tibble(cluster_list) %>%
+    rename({{cluster_column_name}} := V1) %>%
+    mutate(
+      sample_name = sample_names,
+      {{cluster_column_name}} := as_factor({{cluster_column_name}})
+    )
+
+  cluster_list
 }

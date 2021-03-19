@@ -11,11 +11,23 @@ sample_dendrogram =
   hclust() %>%
   as.dendrogram()
 
+# okay, so we *were* running this on the annotated modules
+# but that seems short sighted.  Ignores genes that might fall into
+# an unannotated module or just nothing.
+# changing to running on the top 20000 variable genes instead.
 sample_cluster_info =
   ident_clusters(
-    column_to_rownames(annotated_module_scores, "sample_name"),
+    vsd_exprs,
     K.max = 20
   )
+
+# clusters =
+#   leiden_cluster(
+#     exprs = vsd_top,
+#     res = 1.5,
+#     nneighbors = 10,
+#     column_name = "cluster"
+#   )
 
 clusters =
   sample_cluster_info$clusters %>% mutate(cluster = as_factor(cluster))

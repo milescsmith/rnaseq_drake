@@ -17,6 +17,11 @@ output:
     toc: TRUE
     toc_depth: 3
     toc_float: TRUE
+  pdf_document:
+    highlight: "pygments"
+    toc: TRUE
+    toc_depth: 3
+always_allow_html: true
 ---
 
 ```{css, echo=FALSE}
@@ -46,9 +51,9 @@ theme_set(theme_cowplot())
 ## Overview of sample characteristics:
 
 ```{r sample characteristics, fig.height=15, fig.width=10}
-loadd(md_cat_data)
-inspectdf::show_plot(md_cat_data, high_cardinality=1, col_palette = 3) +
-  labs(title = "Frequency of categorical levels")
+#loadd(md_cat_data)
+#inspectdf::show_plot(md_cat_data, high_cardinality=1, col_palette = 3) +
+  #labs(title = "Frequency of categorical levels")
 ```
 
 ```{r}
@@ -149,10 +154,12 @@ pca_qc %>%
 loadd(removed_outliers)
 if (length(removed_outliers) > 0) {
   filter(final_md, sample_name %in% removed_outliers) %>%
-  kable(caption = "Removing the following samples:") %>%
-  kable_styling(
-    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
-    full_width = FALSE)
+    select(sample_name, visit_ref, subject_ref, sex, ethnicity, age) %>%
+    kable(caption = "Removing the following samples:") %>%
+    kable_styling(
+      bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+     full_width = FALSE
+     )
 }
 ```
 
@@ -223,11 +230,11 @@ disp_plot
 
 ## Surrogate Variable Analysis
 
-Surrogate variables are unknown, unmodeled, or latent sources of noise hidden in the data.  The `sva` package was used to estimate the first two surrogate variables which were then introduced into the DESeq design formula to control for their effects.
+Surrogate variables are unknown, unmodeled, or latent sources of noise hidden in the data.  The `sva` package was used to estimate the first three surrogate variables which were then introduced into the DESeq design formula to control for their effects.
 
 ```{r sva}
-loadd(dds_with_scores)
-plot_sva(colData(dds_with_scores))
+loadd(dds_with_scores, sva_graph_data)
+plot_sva(sva_graph_data = sva_graph_data)
 ```
 
 ## K-means clustering optimization
@@ -237,20 +244,17 @@ To determine the optimal *k*, the gap statistic was calculated for *k* = (3,20) 
 ```{r kmeans optimization}
 loadd(sample_cluster_info)
 
-k_clusters <- sample_cluster_info$kmeans_res
-rf_distance_mat <- sample_cluster_info$rf_distance
-gap_stat <- sample_cluster_info$gap_stat
+fviz_gap_stat(sample_cluster_info$gap_stat, maxSE = list(method = "Tibs2001SEmax", SE.factor = 1))
 
-fviz_gap_stat(gap_stat, maxSE = list(method = "Tibs2001SEmax", SE.factor = 1))
-
-fviz_cluster(k_clusters,
-               data = rf_distance_mat,
-               ellipse.type = "convex",
-               geom = "point",
-               pointsize = 1,
-               ggtheme = theme_cowplot(),
-               main = "K-mean cluster for determined modules"
-  )
+fviz_cluster(
+  sample_cluster_info$kmeans_res,
+  data = sample_cluster_info$rf_distance,
+  ellipse.type = "convex",
+  geom = "point",
+  pointsize = 1,
+  ggtheme = theme_pubr(),
+  main = "K-mean cluster for determined modules"
+)
 
 ```
 
@@ -290,7 +294,7 @@ t(vsd_exprs)[,c(sex_specific_genes[['symbol']])] %>%
     angle=315)
 ```
 
-These appear to be correct.
+There appears to be one sample that is lacking a label but appears to express high levels of the female markers XIST and ZFX as well as the male markers PCDH11Y and PRORY.  There's also a couple of other samples that may have a mix of male and female markers, but otherwise no signs of gross sample mixup.
 
 ```{r}
 sessioninfo::session_info()

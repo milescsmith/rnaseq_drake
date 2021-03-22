@@ -1,20 +1,20 @@
-corrected_counts =
-  ComBat_seq(
-    counts = counts(dds_import),
-    batch = fct_drop(colData(dds_import)[[batch_variable]]),
-    group = colData(dds_import)[[comparison_grouping_variable]]
-  ) %>%
-  `storage.mode<-`("integer")
-
-dds_import_combat =
-  DESeqDataSetFromMatrix(
-    countData = corrected_counts,
-    colData = colData(dds_import),
-    design = study_design
-  )
+# corrected_counts =
+#   ComBat_seq(
+#     counts = counts(dds_import),
+#     batch = fct_drop(colData(dds_import)[[batch_variable]]),
+#     group = colData(dds_import)[[comparison_grouping_variable]]
+#   ) %>%
+#   `storage.mode<-`("integer")
+#
+# dds_import_combat =
+#   DESeqDataSetFromMatrix(
+#     countData = corrected_counts,
+#     colData = colData(dds_import),
+#     design = study_design
+#   )
 
 dds_filtered =
-  dds_import_combat %>%
+  dds_import %>%
   magrittr::extract(rowSums(counts(.)) > 1, ) %>%
   magrittr::extract(
     grep(

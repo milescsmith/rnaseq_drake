@@ -1,5 +1,5 @@
 seq_file_directory              = "/home/rstudio/oldworkspace/datasets/rnaseq/novaseq"
-metadata_file                   = "metadata/COVID (PCV, OSCTR) analysis dataset.xlsx"
+metadata_file                   = "metadata/NovaSeq_Sample_List.xlsx"
 metadata_sheet                  = "main"
 main_sample_list                = "metadata/NovaSeq_Sample_List.xlsx"
 main_sample_sheet               = "main"
@@ -20,18 +20,18 @@ WGCNA::allowWGCNAThreads()
 
 
 #### Setup project variables ####
-project_groups_to_include       = c("PCV Case", "control")
-project_groups_to_exclude       = c("OSCTR Case")
-disease_classes_to_include      = NULL
+project_groups_to_include       = "BLAST"
+project_groups_to_exclude       = c("ALE06", "Xencor", "BChong2019.1")
+disease_classes_to_include      = c("Control", "SLE")
 disease_classes_to_exclude      = NULL
-study_design                    = ~ run_id + disease_class
+study_design                    = ~ disease_class
 comparison_grouping_variable    = "disease_class"
 control_group                   = "control"
-experimental_group              = "infected"
+experimental_group              = "SLE"
 batch_variable                  = "run_id"
 num_sva                         = 9
 
-samples_to_manually_remove      = c("AA05181", "AA05141", "AA04447")
+samples_to_manually_remove      = NULL
 
 initial_concentration_threshold = 1.5
 pc1_zscore_threshold            = 2
@@ -89,10 +89,10 @@ drake_config(
   session_info            = TRUE,
   verbose                 = 2,
   # caching                 = "worker",
-  memory_strategy         = "speed",
+  #memory_strategy         = "speed",
   #parallelism             = "future",
   #jobs                    = parallel::detectCores()-2,
   lock_envir              = TRUE,
   #targets                 = c("report", "qc_report", "report_pdf", "qc_report_pdf")
-  targets                 = c("report", "qc_report")
+  targets                 = "report"
   )

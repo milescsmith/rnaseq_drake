@@ -2,33 +2,34 @@ study_metadata =
   read_excel(
     path    = metadata_file,
     sheet   = "main",
-    skip    = 1,
+    skip    = 0,
     trim_ws = TRUE,
     na      = "n/a",
     .name_repair = janitor::make_clean_names
   ) %>%
   select(
-    -cytokine_loc_idx,
-    -cytokine_sample_id,
-    -study_group
+    -ord,
+    -pos,
+    -i7_index,
+    -index,
+    -i5_index,
+    -index2,
+    -correction_needed,
+    -study_group,
+    -rin,
+    -mess,
+    -abc_or_mess_or_control
   ) %>%
   rename(
-    sample_name = novaseq_exs_id,
+    sample_name = nova_seq_sample_id,
     ethnicity = race_code,
-    age = age_at_enroll
   ) %>%
   filter(
     !is.na(sample_name),
-    project_group %in% (project_groups_to_include %||% unique(.data$project_group)),
-    project_group %nin% project_groups_to_exclude
+    project %in% (project_groups_to_include %||% unique(.data$project_group)),
+    project %nin% project_groups_to_exclude
   ) %>%
   mutate(
-    disease_class =
-      case_when(
-        str_detect(string = project_group, pattern = "[Cc]ontrol") ~ "control",
-        str_detect(string = project_group, pattern = "[Cc]ase") ~ "infected",
-        TRUE ~ "unknown"
-        ),
     sample_name =
       janitor::make_clean_names(
         string = sample_name,
@@ -37,19 +38,16 @@ study_metadata =
     across(
       .cols =
         c(
-          project_group,
           sex,
           ethnicity,
-          grant_defined_severity,
-          j_james_severity,
-          k_smith_severity
+          run_id,
+          disease_class
           ),
       .fns = as_factor
       ),
     age = as.numeric(age)
     ) %>%
-  distinct() %>%
-  mutate(run_id = factor("S4_011_1"))
+  distinct()
 
 non_project_controls =
   read_excel(
@@ -71,6 +69,11 @@ non_project_controls =
     ethnicity = race_code,
     visit_ref,
     subject_ref,
+    sample_alias,
+    project,
+    initial_concentration_ng_ul,
+    final_concentration_ng_ul,
+    study,
     age,
     run_id
     ) %>%
@@ -143,13 +146,18 @@ final_md = filter(
     negate = TRUE
     )
   ) %>%
+  filter(run_id != "S4_004_2") %>%
   mutate(
     disease_class = as_factor(disease_class) %>% fct_relevel({{control_group}}),
+    across(
+      .cols = where(is.factor),
+      .fns = fct_drop
+    )
   ) %>%
   column_to_rownames('sample_name')
 
 #Inspect the metadata:
-#md_cat_data = inspect_cat(final_md)
+md_cat_data = inspect_cat(final_md)
 
 md_num_data = inspect_num(final_md)
 

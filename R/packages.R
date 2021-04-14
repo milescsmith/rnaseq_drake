@@ -1,42 +1,67 @@
 reticulate::use_condaenv('reticulate', required = TRUE, conda = "~/conda/bin/conda")
-library(caret)
-library(cluster)
-library(clusterProfiler)
-library(corrplot)
-library(cowplot)
-library(DESeq2)
-library(drake)
-library(factoextra)
-library(flextable)
-library(formattable)
-library(furrr)
-library(ggforce)
-library(ggplotify)
-library(ggpubr)
-library(ggradar)
-library(ggrepel)
-library(ggtext)
-library(gtools)
-library(HGNChelper)
-library(janitor)
-library(kableExtra)
-library(knitr)
-library(matrixStats)
-library(moduleScoreR)
-library(paletteer)
-library(pheatmap)
-library(plotly)
-library(RColorBrewer)
-library(readxl)
-library(rlang)
-library(rstatix)
-library(scales)
-library(stats)
-library(sva)
-library(tidymodels)
-library(randomForest)
-library(tidyverse)
-library(tximport)
-library(uwot)
-library(viridis)
-library(WGCNA)
+required_packages <-
+  c(
+    "caret",
+    "clusterProfiler",
+    "corrplot",
+    "cowplot",
+    "data.table",
+    "DESeq2",
+    "drake",
+    "edgeR",
+    "factoextra",
+    "flextable",
+    "formattable",
+    "furrr",
+    "ggforce",
+    "ggplotify",
+    "ggpubr",
+    "ggrepel",
+    "ggtext",
+    "gtools",
+    "HGNChelper",
+    "irlba",
+    "janitor",
+    "limma",
+    "kableExtra",
+    "knitr",
+    "magrittr",
+    "matrixStats",
+    "moduleScoreR",
+    "paletteer",
+    "parallelCluster",
+    "pheatmap",
+    "plotly",
+    "RColorBrewer",
+    "readxl",
+    "rlang",
+    "rstatix",
+    "scales",
+    "stats",
+    "sva",
+    "tidymodels",
+    "randomForest",
+    "tidyverse",
+    "tximport",
+    "uwot",
+    "viridis",
+    "WGCNA"
+  )
+
+lapply(required_packages, function(x){
+  if (x %in% installed.packages()){
+    require(x, character.only = TRUE)
+  } else {
+    BiocManager::install(
+      pkgs = x,
+      Ncpus = parallel::detectCores(),
+      dependencies = c("Depends","Imports","LinkingTo"),
+      clean = TRUE,
+      upgrade = FALSE,
+      ask = FALSE,
+      checkBuilt = TRUE
+      )
+    require(x, character.only = TRUE)
+  }
+})
+

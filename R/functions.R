@@ -284,7 +284,7 @@ process_counts.limma <-
       raw_counts         = counts[["counts"]],
       normalized_counts  = cpm(post_qc_dge, log = TRUE),
       transformed_counts = voom_exprs[["E"]],
-      outlier_samples.   = outlier_qc[["removed"]],
+      outlier_samples    = outlier_qc[["removed"]],
       qc_pca             = outlier_qc[["pca"]],
       degs               = res,
       dataset            = post_qc_dge,
@@ -303,7 +303,7 @@ process_counts.edgeR <-
     minimum_gene_count           = 1,
     pc1_zscore_threshold         = 2,
     pc2_zscore_threshold.        = 2,
-    BPPARAM.                     = BPPARAM,
+    BPPARAM                      = BPPARAM,
     sva_num                      = 2,
     use_combat                   = FALSE
   ){
